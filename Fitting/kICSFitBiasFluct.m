@@ -22,23 +22,22 @@ for i = 1:length(varargin)
     elseif any(strcmpi(varargin{i},{'tauNorm','normByTau','normTau','normByLag','normLag'}))
         if isnumeric(varargin{i+1})
             tauNorm = varargin{i+1};
-        elseif strcmpi(varargin{i+1},{'none','noNorm'}) 
+        elseif any(strcmpi(varargin{i+1},{'none','noNorm',''})) 
             noNorm = 1;
         end
     end
 end
 
-% The field "A" is for a fudge factor whihc should be placed in the case of
+% The field "A" is for a fudge factor which should be placed in the case of
 % no normalization
-s = struct('diffusion',params(1),'k_on',params(2),'k_off',params(3),'frac',params(4),'w0',params(5),'sigma',params(6),'A',[]);
-
-fields = fieldnames(s);
-
-for n = 7:length(fields)
-    if n <= length(params)   
-        fieldname = fields{n};
-        s.(fieldname) = params(n);
-    end
+if isnumeric(tauNorm)
+    s = struct('diffusion',params(1),'k_on',params(2),'k_off',params(3),'frac',params(4),'w0',params(5),'sigma',params(6));
+elseif noNorm == 1 && all(tauVector)
+    s = struct('diffusion',params(1),'k_on',params(2),'k_off',params(3),'frac',params(4),'w0',params(5),'A',params(6));
+elseif noNorm == 1 && ~all(tauVector)
+    s = struct('diffusion',params(1),'k_on',params(2),'k_off',params(3),'frac',params(4),'w0',params(5),'sigma',params(6),'A',params(7));
+else 
+    disp('error in input of "tauVector", or varargin'); return
 end
 
 F = zeros(length(kSq),length(tauVector)); % best fit function
@@ -58,9 +57,9 @@ for tauInd = 1:length(tauVector)
         f_norm = biasFluctFunction(s.diffusion,s.k_on,s.k_off,s.frac,T,kSq,tauNorm);
         F(:,tauInd) = Ik.^2.*f./(Ik.^2.*f_norm+s.sigma);
     elseif tau ~= 0 && noNorm == 1 % no normalization + tau is non-zero 
-        F(:,tauInd) = (s.A*s.w0^2*pi/2)^2*Ik.^2.*f; 
+        F(:,tauInd) = s.A*Ik.^2.*f; 
     elseif tau == 0 && noNorm == 1 % no normalization + tau is zero 
-        F(:,tauInd) = (s.A*s.w0^2*pi/2)^2*Ik.^2.*f + s.sigma;
+        F(:,tauInd) = s.A*Ik.^2.*f + s.sigma;
     end
         
     if errBool

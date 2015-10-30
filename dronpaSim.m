@@ -38,7 +38,7 @@ N_imm = size(immobile_pos.position,1);
 particles = struct('immobile',struct,'diffusing',struct); % struct which stores positions of all particle states, as well as aggregation state
 particles.immobile = struct('position',zeros(N_imm,2),'photoState',zeros(N_imm,T),...
     'obsState',zeros(N_imm,T),'aggState',zeros(N_imm,1),'aggregate',struct);
-particles.immobile.aggregate = struct('position',{{}},'photoState',{{}},'obsState',{{}}); % aggregate positions and phot states
+particles.immobile.aggregate = struct('position',{{}},'photoState',{{}},'obsState',{{}}); % aggregate positions and photo states
 particles.diffusing = struct('position',zeros(N_diff,2,T),'photoState',zeros(N_diff,T),'obsState',zeros(N_diff,T));
 
 particles.immobile.position = immobile_pos.position;

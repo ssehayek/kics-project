@@ -1,12 +1,6 @@
 %% Preliminary Code
 
 run('getAnalysisInput') % gets all parameters from "analysisInput.txt.mv"
-% cd(saveSimDir)
-if ~createSim && ~fitSim % exits if no routine is chosen
-    disp('"createSim" and "fitSim" cannot both be 0.'); exit
-elseif fitSim && ~createSim && ~exist(dirName,'dir') % if simulation wasn't created in this run, load in existing data
-    disp('Existing simulations do not exist.'); exit % exit if simulations don't exist
-end
 
 addpath(genpath(codePath)) 
 
@@ -16,6 +10,12 @@ dirName = [saveSimDir paramStr];
 
 if exist(dirName,'dir') ~= 0 && createSim % prevents overwriting saved data (should be improved as not all parameters are considered)
     disp('Simulations already exist for these parameters'); createSim = 0;
+elseif ~createSim && ~fitSim % exits if no routine is chosen
+    disp('"createSim" and "fitSim" cannot both be 0.'); exit
+elseif fitSim && ~createSim && ~exist(dirName,'dir') % 
+    disp('Existing simulations do not exist.'); exit % exit if simulations don't exist and createSim=0
+elseif exist(dirName,'dir') == 0 && createSim % make new simulation directory if creating a simulation 
+    mkdir(dirName)
 end
 
 %% Create Simulations
@@ -23,9 +23,8 @@ end
 if createSim
     J = dronpaSim(sz,N_diff,prob_agg,mean_agg_num,T,k_on,k_off,k_p,diffusion,w0,'snr',snr);
     
-    mkdir(dirName)
     filename = [dirName filesep 'movie.mat'];
-    save(filename,'J'); % save movie
+    save(filename,'J'); % save simulation movie
 end
 
 %% Run kICS
@@ -37,12 +36,14 @@ if fitSim
     r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,T]),'normByLag',normByLag); % kICS correlation of data
     [r_k_circ,kSqVector] = circular(r_k_norm,floor(sz/2)-2); % circular average over |k|^2
     r_k_abs = abs(r_k_circ); % get rid of complex values
-    
+    if any(strcmpi(normByLag,{'none','noNorm',''})) % some normalization for when the kICS AC is not normalized, otherwise the fit is unreasonable
+        max_value = max(max(r_k_abs));
+        r_k_abs = r_k_abs/max_value;
+    end
     cd(runDir)
     mkdir('Analysis')
-    cd('Analysis')
     
-    filename = [runDir 'kICS_Data.mat'];
+    filename = [runDir 'Analysis/kICS_Data.mat'];
     save(filename,'kSqVector','r_k_abs','r_k_norm'); % save computed kICS ACF
 end
 
@@ -54,7 +55,7 @@ if fitSim
     kSqVectorSubset = kSqVector(kSqMinIndex:kSqMaxIndex); % all values satisfying kSqMin <= kSqVector <= kSqMax
     kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
     
-    kICSCorrSubset = r_k_abs(kSqSubsetInd,:,:); % corresponding subset of kICS ACF 
+    kICSCorrSubset = r_k_abs(kSqSubsetInd,:); % corresponding subset of kICS ACF 
     
     err = @(params) kICSFitBiasFluct(params,kSqVectorSubset,tauVector,T,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
     
@@ -86,8 +87,9 @@ if fitSim
     xlim([kSqMin kSqMax])
     ylims = get(gca,'ylim');
     ylim([0 ylims(2)])
-    
     tightfig(gcf)
-    saveas(gcf,[paramStr '.fig']) 
+    
+    filename = [runDir 'Analysis/' paramStr '.fig'];
+    saveas(gcf,filename) 
 %     saveas(gcf,[paramStr '.pdf'])
 end
