@@ -6,14 +6,30 @@
 % f: ratio of static molecules to dynamic
 % tau: time-lag
 %
-function out = biasFluctFunction(d,a,b,f,T,kSq,tau) 
+function out = biasFluctFunction(d,a,b,f,T,kSq,tau,varargin)
+
+useGPU = 0;
+for i = 1:length(varargin)
+    if any(strcmpi(varargin{i},{'useGPU','GPU'}))
+        if isnumeric(varargin{i+1})
+            useGPU = varargin{i+1};
+        end
+    end
+end
 
 K = a + b;
 
 [k,t] = meshgrid(sqrt(kSq),0:T-1); % all possible time lags
 
+% disp(useGPU)
+if useGPU
+%     disp('transfering arrays to GPU...')
+    k = gpuArray(k);
+    t = gpuArray(t);
+end
+
 G_t = a/K^2*(a+b*exp(-K*t)); % photophysical autocorrelation
-R_k_t = exp(-d*k.^2.*t)+f;
+R_k_t = f*exp(-d*k.^2.*t)+1-f;
 
 tau1 = 0:tau;
 tau2 = 1:T-tau-1;
