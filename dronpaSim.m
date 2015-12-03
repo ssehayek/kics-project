@@ -1,20 +1,54 @@
-% size_x and size_y: define image size in pixels (MUST BE A POWER OF 2; MUST BE SQUARE...=/)
-% density: average particle density in number per pixel^2
-%          super-resolution image generation
-% w0: characteristic size of PSF; e^-2 radius of Gaussian, or 1st zero of
-%     Airy disc in um; note w0 should be >1 to produce SOFI images.
-% T: total number of frames
-% diffusion: diffusion coefficient appearing in diffusion equation
-function [J] = dronpaSim(sz,N_diff,prob_agg,mean_agg_num,T,k_on,k_off,k_p,diffusion,w0,varargin)
-% ith row denotes position of ith particle at time t. Positions are drawn
-% randomly at first from a uniform distribution. Then a random walk is executed
-% with characteristic step length delta = sqrt(2*diffusion*time_step) as the std of a Gaussian RV (time_step is taken to be 1).
-% Note size_x*size_y*density is the total number of
-% particles in the image on average.
+% dronpaSim(...) is meant to simulate the behaviour of a certain Dronpa
+% mutant bound to beta actin. The beta actin is allowed to freely diffuse,
+% or remain fixed in filamentous structures. Immobile particles found on
+% these filaments are also allowed to form aggregates. Additionally, all
+% particles are assumed to possess the same blinking/bleaching
+% distributions. 
+%
+% The filaments are created by drawing angles from a narrow Gaussian
+% distribution. Particles are then subsequently placed along the filaments
+% with some probability. Distances between these particles are stochastic.
+% See "directedFilaments.m" for more information.
+%
+% A fraction of the immobile population will be aggregated. The number of
+% molecules in a certain aggregate is drawn from a Poisson distribution,
+% with some fixed mean. The distances between molecules in an aggregate are
+% drawn from a narrow Gaussian distribution.
+%
+% SIMULATION PARAMS
+% sz: size of each frame (assumed square)
+% T: number of frames
+% w0: PSF size (e-2 radius)
+% N_diff: number of diffusing molecules
+% k_on: rate of blinking on
+% k_off: rate of blinking off
+% k_p: rate of bleaching
+%
+% AGGREGATE PARAMS
+% prob_agg: probability that a certain immobile particle is aggregated
+% mean_agg_num: mean number of particles in an aggregate
+% std_agg_dist: std dev of distance between particles (from the initially
+%               placed particle) - drawn from Gaussian of mean centered
+%               around initially placed particle
+%
+% FILAMENT PARAMS
+% num_filaments: number of filaments
+% prob_place: probability to place molecule along filament - algorithm
+%             steps along filament as: rand()*unit_vec, where unit_vec is
+%             the unit vector in the direction of the filament
+%
+% FUTURE IMPROVEMENTS
+% - Dronpa has odd blinking behaviour, which does not follow the standard
+%   two-state model (see http://www.pnas.org/content/102/27/9511.full). 
+% - PSF should have stochastic size
+% - Laser power should affect blinking on rate
+%
+function [J] = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
+    prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,varargin)
 
-num_filaments = 20;
-pr = 0.3;
-std_agg_dis = 1/10; % default standard deviation of aggregates' distance from initially placed particle
+% num_filaments = 20;
+% prob_place = 0.3;
+% std_agg_dist = 1/10; % default standard deviation of aggregates' distance from initially placed particle
 simulatePhotophysics = 1;
 addNoise = 0;
 for i = 1:length(varargin)
@@ -30,7 +64,7 @@ addpath(genpath('C:\Users\SimonS\Dropbox (Personal)\Research\PhD\SOFI-Project'))
 
 %% initialize filament structure
 
-[~,immobile_pos] = directedFilaments(sz,num_filaments,pr);
+[~,immobile_pos] = directedFilaments(sz,num_filaments,prob_place);
 N_imm = size(immobile_pos.position,1);
 
 %% initialize particles array
@@ -51,7 +85,7 @@ particles.diffusing.position(:,:,1) = sz*rand(N_diff,2);
 %% aggregated states
 
 agg_state = binornd(1,prob_agg,[N_imm,1]); % random draws from binomial dist to determine aggregation state of each immobile particle
-particles.immobile.aggState = agg_state; % 0: non-aggregated
+particles.immobile.aggState = agg_state; % 0:non-aggregated, 1:aggregated
 
 agg_pos = [];
 for n = 1:N_imm
@@ -59,7 +93,7 @@ for n = 1:N_imm
         agg_num = poissrnd(mean_agg_num); % draw number of molecules in nth aggregate
         if agg_num ~= 0
             mean_particle_pos = particles.immobile.position(n,:); % for simplicity
-            particles.immobile.aggregate.position{n} = repmat(mean_particle_pos,[agg_num,1]) + std_agg_dis*randn([agg_num,2]); % place aggregates with Gaussian dist
+            particles.immobile.aggregate.position{n} = repmat(mean_particle_pos,[agg_num,1]) + std_agg_dist*randn([agg_num,2]); % place aggregates with Gaussian dist
             
             add_pos = particles.immobile.aggregate.position{n};
             agg_pos = cat(1,agg_pos,add_pos); % concatenating all aggregate positions (not including initial aggregate)

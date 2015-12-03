@@ -24,7 +24,8 @@ end
 %% Create Simulations
 
 if createSim
-    J = dronpaSim(sz,N_diff,prob_agg,mean_agg_num,T,k_on,k_off,k_p,diffusion,w0,'snr',snr);
+    J = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
+        prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr);
     
     filename = [dirName filesep 'movie.mat'];
     save(filename,'J'); % save simulation movie
@@ -100,9 +101,9 @@ if fitSim
     plotLegend = cell(1,length(plotTauLags));
     h_sim_data = zeros(1,length(plotTauLags));
     for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        if fitSim && legacy
+        if legacy
             plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
-        elseif fitSim
+        else
             plot(kSqFit,kICSFitBiasFluct(opt_params,kSqFit,plotTauLags(tauInd),T,'normByLag',normByLag,'useGPU',useGPU),'Color',color(tauInd,:)) % plot best fit kICS ACF
         end
         h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),'.','markersize',16,'Color',color(tauInd,:)); % plot heuristic kICS ACF

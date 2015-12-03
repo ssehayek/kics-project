@@ -1,0 +1,23 @@
+#!/bin/bash
+
+## pmem 15700m usually used
+########### INPUT VARIABLES ###################
+
+# These variables will be updated by preSubScript
+
+CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/"
+NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/2015-11-28-01h28m38s/"
+CODECLASS="SOFI-Project"
+RUN="2015-11-28-01h28m38s"
+
+###############################################
+cd "${NEWDIR}"
+
+MSCRIPT="${CODEPATH}${CODECLASS}/clusterCode.m"
+
+matlab -nodisplay < "$MSCRIPT" > "${NEWDIR}${RUN}.out" 2> "${NEWDIR}${RUN}.err"
+
+cd "${NEWDIR}"
+rm getAnalysisInput.m
+
+chmod -R -f 740 "${NEWDIR}"
