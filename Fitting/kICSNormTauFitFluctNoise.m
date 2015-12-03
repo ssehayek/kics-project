@@ -38,7 +38,9 @@ F = Ik.^2.*(s.frac*photophys_AC.*exp(-kSqGrid.*s.diffusion.*tauGrid)+(1-s.frac).
 % the best measure for the error, so far, seems to be to calculate the LS
 % of each curve in tau individually, and then sum it. This is instead of
 % calculating the norm point-by-point.
-err = sum(sqrt(sum((F-ydata(:,tauVector+1)).^2,1)),2);
+if errBool
+    err = sum(sqrt(sum((F-ydata(:,tauVector+1)).^2,1)),2);
+end
 
 if ~errBool % output function
     out = F;
