@@ -37,6 +37,14 @@
 %             steps along filament as: rand()*unit_vec, where unit_vec is
 %             the unit vector in the direction of the filament
 %
+% VARARGIN
+% - Choose whether to simulate photophysics
+%   'simulatePhotoPhysics' | values: (default 1) 
+%                            0
+% - Add white-noise to simulation, with given signal-to-noise ratio (SNR)
+%   (by default noise is not added)
+%   'SNR' | value: value of (0,Inf), but more standard (1,~4]
+%
 % FUTURE IMPROVEMENTS
 % - Dronpa has odd blinking behaviour, which does not follow the standard
 %   two-state model (see http://www.pnas.org/content/102/27/9511.full). 
