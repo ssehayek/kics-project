@@ -6,9 +6,9 @@
 # These variables will be updated by preSubScript
 
 CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/"
-NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/2015-11-28-01h28m38s/"
+NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/2015-12-15-22h58m10s/"
 CODECLASS="SOFI-Project"
-RUN="2015-11-28-01h28m38s"
+RUN="2015-12-15-22h58m10s"
 
 ###############################################
 cd "${NEWDIR}"

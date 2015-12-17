@@ -65,10 +65,10 @@ if fitSim
     kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
     
     kICSCorrSubset = r_k_abs(kSqSubsetInd,:); % corresponding subset of kICS ACF
-    if legacy
+    if isnumeric(snr) % with noise
         err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
-    else
-        err = @(params) kICSFitBiasFluct(params,kSqVectorSubset,tauVector,T,'normByLag',normByLag,'err',kICSCorrSubset,'useGPU',useGPU); % function handle of LSF error
+    else % no noise
+        err = @(params) kICSNormTauFitFluct(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset);
     end
     
     tic
@@ -79,6 +79,7 @@ if fitSim
         problem = createOptimProblem('fmincon','objective',...
             err,'x0',params_guess,'lb',lb,'ub',ub,'options',opts);
         ms = MultiStart('UseParallel',true,'Display','final'); % FIXED: multi start object, the function is using previous options for 2013a adaptability
+        ms.TolX = tolX; ms.TolFun = tolFun;
         [opt_params,err_min] = run(ms,problem,startPts)
         
         delete(gcp)
@@ -87,9 +88,17 @@ if fitSim
         problem = createOptimProblem('fmincon','objective',...
             err,'x0',params_guess,'lb',lb,'ub',ub,'options',opts);
         gs = GlobalSearch; % global search object
-        [opt_params,err_min] = run(gs,problem)
+        [opt_params,err_min] = run(gs,problem);
     end
     fitTime = toc; disp(['fitTime = ' num2str(fitTime)]);
+    if ~isnumeric(snr)
+        k_on = (1-opt_params(2))*opt_params(3);
+        k_off = opt_params(2)*opt_params(3);
+       
+        disp(['k_on = ',num2str(k_on)])
+        disp(['k_off = ',num2str(k_off)])
+    end
+    
     
     kSqFit = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function
     
@@ -101,10 +110,10 @@ if fitSim
     plotLegend = cell(1,length(plotTauLags));
     h_sim_data = zeros(1,length(plotTauLags));
     for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        if legacy
+        if isnumeric(snr)
             plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
         else
-            plot(kSqFit,kICSFitBiasFluct(opt_params,kSqFit,plotTauLags(tauInd),T,'normByLag',normByLag,'useGPU',useGPU),'Color',color(tauInd,:)) % plot best fit kICS ACF
+            plot(kSqFit,kICSNormTauFitFluct(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
         end
         h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),'.','markersize',16,'Color',color(tauInd,:)); % plot heuristic kICS ACF
         plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];

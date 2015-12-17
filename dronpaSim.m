@@ -39,8 +39,7 @@
 %
 % VARARGIN
 % - Choose whether to simulate photophysics
-%   'simulatePhotoPhysics' | values: (default 1) 
-%                            0
+%   'simulatePhotoPhysics' | values: (default 1) 0
 % - Add white-noise to simulation, with given signal-to-noise ratio (SNR)
 %   (by default noise is not added)
 %   'SNR' | value: value of (0,Inf), but more standard (1,~4]
@@ -62,9 +61,15 @@ addNoise = 0;
 for i = 1:length(varargin)
     if any(strcmpi(varargin{i},{'simulatePhotophysics','photoSimulate','photoSim','simPhoto'})) && (varargin{i+1} == 0 || varargin{i+1} == 1)
         simulatePhotophysics = varargin{i+1};
-    elseif any(strcmpi(varargin{i},{'addNoise','noise','whiteNoise','snr'})) && isnumeric(varargin{i+1}) && varargin{i+1} > 0 % add noise with varargin{i+1}=SNR 
-        addNoise = 1;
-        snr = varargin{i+1};    
+    elseif any(strcmpi(varargin{i},{'addNoise','noise','whiteNoise','snr'})) && isnumeric(varargin{i+1})  % add noise with varargin{i+1}=SNR 
+        if isnumeric(varargin{i+1}) && varargin{i+1} > 0
+            addNoise = 1;
+            snr = varargin{i+1};    
+        elseif any(strcmpi(varargin{i+1},{'noNoise','noiseless','none'}))
+            addNoise = 0;
+        else 
+            disp('invalid option for varargin "snr"'); exit
+        end
     end
 end
 

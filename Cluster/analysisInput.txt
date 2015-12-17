@@ -7,7 +7,7 @@
 
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/' | codePath
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/SimulationData/' | saveSimDir
-'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/2015-11-28-01h28m38s/' | runDir
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/2015-12-15-22h58m10s/' | runDir
 
 ######### SIMULATION VARIABLES #########
 
@@ -18,7 +18,7 @@
 500 | N_diff
 1 | diffusion
 0.1 | k_on
-0.1 | k_off
+0.7 | k_off
 0 | k_p
 
 ## AGGREGATE PARAMS
@@ -30,17 +30,22 @@
 20 | num_filaments
 0.3 | prob_place
 
+## VARARGIN
 8 | snr
 
 ############## kICS FIT ############### 
 
 # choose whether to use old fit, or new fit
-1 | legacy
+# 1 | legacy
 
 # parallel boolean
 1 | parallel
 # if parallel is true, choose number of start points to try
 10^6 | startPts
+# point tolerance
+0 | tolX
+# objective function tolerance
+0 | tolFun
 
 # GPU boolean
 0 | useGPU
@@ -53,12 +58,19 @@
 0.01 | kSqMin
 3 | kSqMax
 
-# guess initial params
-# add a param (6+1 total) if there is no normalization & tau can be 0
-## [diffusion k_on k_off 2400/500 w0 100*rand] | params_guess
+# Noise 
+# [D,k_on,k_off,frac,w0,sigma]
+#
 [100*rand rand rand rand 100*rand 100*rand] | params_guess
 eps*ones(1,6) | lb
 [100 1 1 1 100 Inf] | ub
+
+# No Noise
+# [D,k_off_frac,K,frac]
+#
+# [100*rand rand rand rand] | params_guess
+# eps*ones(1,4) | lb
+# [100 1 1 1] | ub
 
 ############## kICS PLOT ############## 
 

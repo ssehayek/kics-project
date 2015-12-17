@@ -13,9 +13,9 @@ CREATESIM=1 # Create simulations logical
 FITSIM=1 # Compare theory to simulations logical
 ###############################################
 
-rm QSub*
-rm Execute*
-rm program_output.txt
+#rm QSub*
+#rm Execute*
+#rm program_output.txt
 
 NEWDIR="${BASEDIR}/${RUN}/"
 mkdir -p "${NEWDIR}"
