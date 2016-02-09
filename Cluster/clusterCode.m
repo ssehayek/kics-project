@@ -1,41 +1,91 @@
 %% Preliminary Code
 
 rng shuffle % reseed the random number generator; otherwise same numbers are generated each time MATLAB restarts
-disp(maxNumCompThreads)
 
 run('getAnalysisInput') % gets all parameters from "analysisInput.txt.mv"
 
 addpath(genpath(codePath))
+cd(['..',filesep,'..']) % cd to main project folder (this is "BASEDIR" in preSubScript)
 
-paramStr = strcat('N_',num2str(N_diff),'_T_',num2str(T),'_D_',num2str(diffusion),'_k_on_',num2str(k_on),...
-    '_k_off_',num2str(k_off),'_k_p_',num2str(k_p),'_SNR_',num2str(snr));
-dirName = [saveSimDir paramStr];
+% organization for simulations
+paramStr1 = strcat('D_',num2str(diffusion),'_k_on_',num2str(k_on),...
+    '_k_off_',num2str(k_off),'_k_p_',num2str(k_p)); % intrinsic properties of molecules string
+paramStr2 = strcat('prob_agg_',num2str(prob_agg),'_mean_agg_num_',...
+    num2str(mean_agg_num),'_std_agg_dist_',num2str(std_agg_dist)); % properties of aggregates string
+paramStr3 = strcat('num_fils_',num2str(num_filaments),'_prob_place_',num2str(prob_place)); % properties of filaments string
+paramStr4 = strcat('N_diff_',num2str(N_diff),'_sz_',num2str(sz),'_T_',...
+    num2str(T),'_SNR_',num2str(snr)); % intrinsic/extrinsic properties of experiment string (filename)
 
-if exist(dirName,'dir') ~= 0 && createSim % prevents overwriting saved data (should be improved as not all parameters are considered)
-    disp('Simulations already exist for these parameters'); createSim = 0;
+simfilepath_rel = [paramStr1,filesep,paramStr2,filesep,paramStr3,filesep,paramStr4]; % relative path to simulation file
+
+simfilepath_abs = [saveSimDir,simfilepath_rel,'_rep_',num2str(loadRep),'.mat']; % absolute path to simulation file.
+                                                                                % this path is only complete if loadRep is non-empty,
+                                                                                % o.w. the path is partial.
+                                                                                % note that loadRep is empty if createSim=0.
+simdirpath_rel = [paramStr1,filesep,paramStr2,filesep,paramStr3]; % relative path to simulation directory
+simdirpath_abs = [saveSimDir,simdirpath_rel]; % relative path to simulation directory
+
+if createSim
+    if exist(simdirpath_abs,'dir') == 0 % create simualation dir if non-existing
+        mkdir(simdirpath_abs);
+    end
+    [simfilepath_abs,num_rep] = iterateFilename(simfilepath_abs)
+    disp(['creating simulation repetition: ',num2str(num_rep),'.'])
 elseif ~createSim && ~fitSim % exits if no routine is chosen
-    disp('"createSim" and "fitSim" cannot both be 0.'); exit
-elseif fitSim && ~createSim && ~exist(dirName,'dir') %
-    disp('Existing simulations do not exist.'); exit % exit if simulations don't exist and createSim=0
-elseif exist(dirName,'dir') == 0 && createSim % make new simulation directory if creating a simulation
-    mkdir(dirName)
+    disp('"createSim" and "fitSim" cannot both be 0.'); 
+elseif ~createSim && fitSim && ~exist(simfilepath_abs,'file') % exit if simulations don't exist and createSim=0
+    disp('Simulations do not exist for these parameters. Please change value of createSim to create this simulation.'); 
+    exit 
 end
+
+% organization for run folder
+if ~isempty(loadRep) % this condition should only be true if createSim=0
+    num_rep = loadRep;
+    disp(['loading repetition ',num2str(num_rep),' for analysis.'])
+end
+
+new_runName = [runName,'--rep-',num2str(num_rep)]; % append rep number to end of "runName"
+new_runDir = [baseDir,filesep,'queued-jobs',filesep,new_runName]; % append rep number to end of "runDir"
+movefile(runDir,new_runDir) % rename folder with rep number appended
+
+% redefine variables to have rep number appended
+runDir = new_runDir; 
+runName = new_runName
+
+if isempty(runClass) == 0
+    rundirpath_rel = [runClass,filesep,simdirpath_rel]; % new relative run path (with class)
+else
+    rundirpath_rel = simdirpath_rel; % new relative run path (no class)
+end
+
+if exist(rundirpath_rel,'dir') == 0 % this won't overwrite anyway, but this is just a safety measure
+    mkdir(rundirpath_rel);          % folder named "runName" is moved to "rundirpath_rel"
+end
+
+if exist([rundirpath_rel,filesep,runName],'dir') ~= 0 % exits if run with same name already exists
+    disp('Run already exists under this name. Please change value of runName.');
+    [error_dir,~] = iterateFilename('error');
+    movefile(runDir,error_dir); % moves run to "error" folder
+    exit
+end
+
+movefile(runDir,rundirpath_rel); % rename run directory
+cd([rundirpath_rel,filesep,runName])
+runDir = pwd % replace runDir definition
 
 %% Create Simulations
 
 if createSim
-    J = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
-        prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr);
+    [J,sim_info] = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
+        prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr); % create simulation
     
-    filename = [dirName filesep 'movie.mat'];
-    save(filename,'J'); % save simulation movie
+    save(simfilepath_abs,'J','sim_info'); % save simulation movie
 end
 
 %% Run kICS
 
-if fitSim && ~createSim
-    filename = [dirName filesep 'movie.mat'];
-    load(filename)
+if fitSim && ~createSim % if file wasn't created, load it
+    load(simfilepath_abs)
 end
 
 r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,T]),'normByLag',normByLag); % kICS correlation of data
@@ -46,28 +96,23 @@ if any(strcmpi(normByLag,{'none','noNorm',''})) % some normalization for when th
     r_k_abs = r_k_abs/max_value;
 end
 cd(runDir)
-mkdir('Analysis')
+mkdir('analysis')
 
-filename = [runDir 'Analysis/kICS_Data.mat'];
+filename = [runDir filesep 'analysis' filesep 'kICS_Data.mat'];
 save(filename,'kSqVector','r_k_abs','r_k_norm'); % save computed kICS ACF
-
-filename = [runDir 'Analysis/' paramStr '_nofit.fig']; % save figure .fig
-saveas(gcf,filename)
-filename = [runDir 'Analysis/' paramStr '_nofit.pdf']; % save figure .pdf
-saveas(gcf,filename)
 
 %% kICS Corr Plot
 
 if fitSim
     kSqMinIndex = find(kSqVector >= kSqMin,1,'first') % lowest index, i, which satisfies kSqVector(i) >= kSqMin
-    kSqMaxIndex = find(kSqVector <= kSqMax,1,'last') % highest index, j, which satisfies kSqVector(i) <= kSqMax
+    kSqMaxIndex = find(kSqVector <= kSqMax,1,'last') % highest index, j, which satisfies kSqVector(j) <= kSqMax
     kSqVectorSubset = kSqVector(kSqMinIndex:kSqMaxIndex); % all values satisfying kSqMin <= kSqVector <= kSqMax
     kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
     
     kICSCorrSubset = r_k_abs(kSqSubsetInd,:); % corresponding subset of kICS ACF
-    if isnumeric(snr) % with noise
+    if isnumeric(snr) % simulations with noise
         err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
-    else % no noise
+    else % simulations without noise
         err = @(params) kICSNormTauFitFluct(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset);
     end
     
@@ -94,32 +139,25 @@ if fitSim
     if ~isnumeric(snr)
         k_on = (1-opt_params(2))*opt_params(3);
         k_off = opt_params(2)*opt_params(3);
-       
+        
         disp(['k_on = ',num2str(k_on)])
         disp(['k_off = ',num2str(k_off)])
     end
     
-    
-    kSqFit = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function
+    kSqFit = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result
     
     figure()
     hold on
     box on
     
-    color = lines(length(plotTauLags)); % lines(length(plotTauLags));
+    color = lines(length(plotTauLags));
     plotLegend = cell(1,length(plotTauLags));
     h_sim_data = zeros(1,length(plotTauLags));
     for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        if isnumeric(snr)
-            plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
-        else
-            plot(kSqFit,kICSNormTauFitFluct(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
-        end
         h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),'.','markersize',16,'Color',color(tauInd,:)); % plot heuristic kICS ACF
         plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
     end
-    
-    % title('kICS Autocorrelation Function')
+    % labeling
     xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
     ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
     legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
@@ -128,11 +166,27 @@ if fitSim
     ylim([0 ylims(2)])
     tightfig(gcf)
     
-    filename = [runDir 'Analysis/' paramStr '.fig']; % save figure .fig
+    % save plots without fits
+    filename = [runDir filesep 'analysis' filesep paramStr4 '_nofit.fig']; % save figure .fig
     saveas(gcf,filename)
-    filename = [runDir 'Analysis/' paramStr '.pdf']; % save figure .pdf
+    filename = [runDir filesep 'analysis' filesep paramStr4 '_nofit.pdf']; % save figure .pdf
     saveas(gcf,filename)
     
-    filename = [runDir 'Analysis/opt_params.mat'];
+    for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
+        if isnumeric(snr)
+            plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
+        else
+            plot(kSqFit,kICSNormTauFitFluct(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
+        end
+    end
+    tightfig(gcf)
+    
+    % save plots with fits
+    filename = [runDir filesep 'analysis' filesep paramStr4 '.fig']; % save figure .fig
+    saveas(gcf,filename)
+    filename = [runDir filesep 'analysis' filesep paramStr4 '.pdf']; % save figure .pdf
+    saveas(gcf,filename)
+    
+    filename = [runDir filesep 'analysis' filesep 'fit_info.mat'];
     save(filename,'opt_params','err_min');
 end

@@ -1,7 +1,7 @@
 % Written by S.S.
 %
 % This function is meant to take an image series and calculate its normalized 
-% kICS autocorrelaation function.
+% kICS autocorrelation function.
 
 function [r_k_norm] = kICS3(J,varargin)
 

@@ -3,11 +3,17 @@
 1 | createSim
 1 | fitSim
 
+[] | loadRep
+
 ########### SAVE DIRECTORIES ########### (change in preSubScript)
 
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/' | codePath
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project' | baseDir
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/SimulationData/' | saveSimDir
-'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/2015-12-15-22h58m10s/' | runDir
+
+'tau1-5--kSqMax-3' | runName
+'no-aggregates-test' | runClass
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/queued-jobs/job_10' | runDir
 
 ######### SIMULATION VARIABLES #########
 
@@ -17,12 +23,12 @@
 4 | w0
 500 | N_diff
 1 | diffusion
-0.1 | k_on
-0.7 | k_off
+0.4 | k_on
+0.5 | k_off
 0 | k_p
 
 ## AGGREGATE PARAMS
-0.5 | prob_agg
+0 | prob_agg
 5 | mean_agg_num
 0.1 | std_agg_dist
 
@@ -41,7 +47,7 @@
 # parallel boolean
 1 | parallel
 # if parallel is true, choose number of start points to try
-10^6 | startPts
+10^5 | startPts
 # point tolerance
 0 | tolX
 # objective function tolerance
@@ -61,7 +67,7 @@
 # Noise 
 # [D,k_on,k_off,frac,w0,sigma]
 #
-[100*rand rand rand rand 100*rand 100*rand] | params_guess
+[100*rand 100*rand rand rand 100*rand 1000*rand] | params_guess
 eps*ones(1,6) | lb
 [100 1 1 1 100 Inf] | ub
 

@@ -50,7 +50,7 @@
 % - PSF should have stochastic size
 % - Laser power should affect blinking on rate
 %
-function [J] = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
+function [J,sim_info] = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
     prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,varargin)
 
 % num_filaments = 20;
@@ -113,7 +113,7 @@ for n = 1:N_imm
         end
     end
 end
-N_agg = size(agg_pos,1) % number of particles in aggregated state (not including initial aggregate)
+N_agg = size(agg_pos,1); % number of particles in aggregated state (not including initial aggregate)
 N = N_imm + N_diff + N_agg; % total number of particles
 
 %% photo-state initialization
@@ -357,4 +357,9 @@ if addNoise
         J(:,:,t) = J(:,:,t) + wgn_t;
     end
 end
-N
+
+% save simulation info
+sim_info.N_diff = N_diff;
+sim_info.N_imm = N_imm;
+sim_info.N_agg = N_agg;
+sim_info.N = N;

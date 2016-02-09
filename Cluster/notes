@@ -1,0 +1,24 @@
+###<density-test>
+
+Variation of prob_place, which controls the density of immobile particles. High density simulations should be poorer since fluctuations are lower.
+Aggregates also have low fluctuations because they consist of a locally dense population.
+
+2016-01-18
+Interesting observation: fitting 10 time lags, as opposed to 5, in the k_on=0.4, k_off=0.5 simulations gives poorer results.
+
+###<consistency-test>
+
+Running multiple runs with same parameters to check if there is consistency in the fits.
+
+2016-01-26
+- Parameters are not consistent, pointing to possible degeneracy.
+- Runs so far have been done on 64x64 px. grid, trying 5 runs of 128x128 px. grid
+2016-01-29
+- Results may be better for 128x128 px. grid
+
+###<no-aggregates-test>
+
+Runs with "prob_agg" set to 0, to get unclustered filaments.
+
+2016-01-29
+- Not looking any better. Problem may lie with fit function
