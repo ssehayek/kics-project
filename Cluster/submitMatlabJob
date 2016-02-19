@@ -5,19 +5,19 @@
 
 # These variables will be updated by preSubScript
 
-CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/"
-NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/queued-jobs/job_10"
+CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code"
+NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/job_5"
 CODECLASS="SOFI-Project"
 RUNNAME="tau1-5--kSqMax-3"
 
 ###############################################
 cd "${NEWDIR}"
 
-MSCRIPT="${CODEPATH}${CODECLASS}/clusterCode.m"
+MSCRIPT="${CODEPATH}/${CODECLASS}/clusterCode.m"
 
 matlab -nodisplay < "$MSCRIPT" > "${NEWDIR}/${RUNNAME}.out" 2> "${NEWDIR}/${RUNNAME}.err"
 
-if [[ -d "${NEWDIR}" ]] 		# only execute if new directory exists
+if [[ -d "${NEWDIR}" ]] 			# only execute if new directory exists
 then 
 	cd "${NEWDIR}"			
 	rm getAnalysisInput.m		

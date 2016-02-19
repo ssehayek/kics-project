@@ -1,3 +1,9 @@
 *.asv
 *.pdf
+*.rtf
+
+# matlab/mathematica associations
 *.fig
+!movieplayer.fig
+*.nb
+*.mat

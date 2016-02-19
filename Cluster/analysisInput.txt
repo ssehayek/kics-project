@@ -8,12 +8,12 @@
 ########### SAVE DIRECTORIES ########### (change in preSubScript)
 
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/' | codePath
-'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project' | baseDir
-'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/SimulationData/' | saveSimDir
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main' | baseDir
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/SimulationData' | saveSimDir
 
 'tau1-5--kSqMax-3' | runName
-'no-aggregates-test' | runClass
-'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/queued-jobs/job_10' | runDir
+'pure-diffusion-test' | runClass
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/job_5' | runDir
 
 ######### SIMULATION VARIABLES #########
 
@@ -22,7 +22,7 @@
 2048 | T
 4 | w0
 500 | N_diff
-1 | diffusion
+1 | D
 0.4 | k_on
 0.5 | k_off
 0 | k_p
@@ -33,7 +33,7 @@
 0.1 | std_agg_dist
 
 ## FILAMENT PARAMS
-20 | num_filaments
+0 | num_filaments
 0.3 | prob_place
 
 ## VARARGIN
@@ -64,19 +64,12 @@
 0.01 | kSqMin
 3 | kSqMax
 
-# Noise 
+# Format 
 # [D,k_on,k_off,frac,w0,sigma]
 #
 [100*rand 100*rand rand rand 100*rand 1000*rand] | params_guess
 eps*ones(1,6) | lb
 [100 1 1 1 100 Inf] | ub
-
-# No Noise
-# [D,k_off_frac,K,frac]
-#
-# [100*rand rand rand rand] | params_guess
-# eps*ones(1,4) | lb
-# [100 1 1 1] | ub
 
 ############## kICS PLOT ############## 
 

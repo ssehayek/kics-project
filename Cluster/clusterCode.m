@@ -1,35 +1,56 @@
 %% Preliminary Code
 
-rng shuffle % reseed the random number generator; otherwise same numbers are generated each time MATLAB restarts
+rng shuffle % reseed the random number generator; otherwise same random 
+            % numbers are generated each time MATLAB restarts
 
 run('getAnalysisInput') % gets all parameters from "analysisInput.txt.mv"
 
 addpath(genpath(codePath))
-cd(['..',filesep,'..']) % cd to main project folder (this is "BASEDIR" in preSubScript)
+cd(['..',filesep,'..']) % cd to main project folder (this is "BASEDIR" 
+                        % in preSubScript)
 
 % organization for simulations
-paramStr1 = strcat('D_',num2str(diffusion),'_k_on_',num2str(k_on),...
+
+% this is meant to better organize files & speed up simulations
+if num_filaments == 0 || prob_place == 0 % no filaments means no immobile particles, or aggregates
+    prob_agg = 0; mean_agg_num = 0; std_agg_dist = 0;
+    num_filaments = 0; prob_place = 0;
+end
+if prob_agg == 0 || mean_agg_num == 0 % no aggregates
+    prob_agg = 0; mean_agg_num = 0;
+end
+if N_diff == 0 % no diffusers
+    D = 0;
+end
+if k_off == 0 % no blinking
+    k_on = 1;
+end
+%
+
+% strings with parameters used for naming
+paramStr1 = strcat('D_',num2str(D),'_k_on_',num2str(k_on),...
     '_k_off_',num2str(k_off),'_k_p_',num2str(k_p)); % intrinsic properties of molecules string
 paramStr2 = strcat('prob_agg_',num2str(prob_agg),'_mean_agg_num_',...
     num2str(mean_agg_num),'_std_agg_dist_',num2str(std_agg_dist)); % properties of aggregates string
 paramStr3 = strcat('num_fils_',num2str(num_filaments),'_prob_place_',num2str(prob_place)); % properties of filaments string
-paramStr4 = strcat('N_diff_',num2str(N_diff),'_sz_',num2str(sz),'_T_',...
+paramStr4 = strcat('N_diff_',num2str(N_diff),'_w0_',num2str(w0),'_sz_',num2str(sz),'_T_',...
     num2str(T),'_SNR_',num2str(snr)); % intrinsic/extrinsic properties of experiment string (filename)
+%
 
 simfilepath_rel = [paramStr1,filesep,paramStr2,filesep,paramStr3,filesep,paramStr4]; % relative path to simulation file
 
-simfilepath_abs = [saveSimDir,simfilepath_rel,'_rep_',num2str(loadRep),'.mat']; % absolute path to simulation file.
-                                                                                % this path is only complete if loadRep is non-empty,
-                                                                                % o.w. the path is partial.
-                                                                                % note that loadRep is empty if createSim=0.
+simfilepath_abs = [saveSimDir,filesep,simfilepath_rel,'_rep_',num2str(loadRep),'.mat']  % absolute path to simulation file.
+                                                                                        % this path is only complete if loadRep is non-empty,
+                                                                                        % o.w. the path is partial.
+                                                                                        % note that loadRep is empty if createSim=0.
 simdirpath_rel = [paramStr1,filesep,paramStr2,filesep,paramStr3]; % relative path to simulation directory
-simdirpath_abs = [saveSimDir,simdirpath_rel]; % relative path to simulation directory
+simdirpath_abs = [saveSimDir,filesep,simdirpath_rel]; % relative path to simulation directory
 
 if createSim
     if exist(simdirpath_abs,'dir') == 0 % create simualation dir if non-existing
         mkdir(simdirpath_abs);
     end
-    [simfilepath_abs,num_rep] = iterateFilename(simfilepath_abs)
+    [simfilepath_abs,num_rep] = iterateFilename(simfilepath_abs);
     disp(['creating simulation repetition: ',num2str(num_rep),'.'])
 elseif ~createSim && ~fitSim % exits if no routine is chosen
     disp('"createSim" and "fitSim" cannot both be 0.'); 
@@ -50,7 +71,7 @@ movefile(runDir,new_runDir) % rename folder with rep number appended
 
 % redefine variables to have rep number appended
 runDir = new_runDir; 
-runName = new_runName
+runName = new_runName;
 
 if isempty(runClass) == 0
     rundirpath_rel = [runClass,filesep,simdirpath_rel]; % new relative run path (with class)
@@ -71,12 +92,12 @@ end
 
 movefile(runDir,rundirpath_rel); % rename run directory
 cd([rundirpath_rel,filesep,runName])
-runDir = pwd % replace runDir definition
+runDir = pwd; % replace runDir definition
 
 %% Create Simulations
 
 if createSim
-    [J,sim_info] = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
+    [J,sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
         prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr); % create simulation
     
     save(simfilepath_abs,'J','sim_info'); % save simulation movie
@@ -110,24 +131,27 @@ if fitSim
     kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
     
     kICSCorrSubset = r_k_abs(kSqSubsetInd,:); % corresponding subset of kICS ACF
-    if isnumeric(snr) % simulations with noise
-        err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
-    else % simulations without noise
-        err = @(params) kICSNormTauFitFluct(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset);
-    end
+    err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
     
     tic
     if parallel
-        parpool
+        parpool % start parallel pool
         
         opts = optimoptions(@fmincon,'Algorithm','interior-point');
         problem = createOptimProblem('fmincon','objective',...
             err,'x0',params_guess,'lb',lb,'ub',ub,'options',opts);
-        ms = MultiStart('UseParallel',true,'Display','final'); % FIXED: multi start object, the function is using previous options for 2013a adaptability
+        ms = MultiStart('UseParallel',true,'Display','final'); 
         ms.TolX = tolX; ms.TolFun = tolFun;
-        [opt_params,err_min] = run(ms,problem,startPts)
         
-        delete(gcp)
+        % scatter "startPts" many points (parallel) in parameter space and
+        % wait for local convergence (if possible) of each point.
+        % "opt_params" are the parameters yielding lowest value in
+        % objective function, "err_min"
+        [opt_params,err_min,~,~,manymins] = run(ms,problem,startPts);
+        disp(['optimal parameters: ',num2str(opt_params)])
+        disp(['minimum objective function: ',num2str(err_min)])
+        
+        delete(gcp) % delete parallel pool object
     else
         opts = optimoptions(@fmincon,'Algorithm','interior-point');
         problem = createOptimProblem('fmincon','objective',...
@@ -136,13 +160,6 @@ if fitSim
         [opt_params,err_min] = run(gs,problem);
     end
     fitTime = toc; disp(['fitTime = ' num2str(fitTime)]);
-    if ~isnumeric(snr)
-        k_on = (1-opt_params(2))*opt_params(3);
-        k_off = opt_params(2)*opt_params(3);
-        
-        disp(['k_on = ',num2str(k_on)])
-        disp(['k_off = ',num2str(k_off)])
-    end
     
     kSqFit = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result
     
@@ -173,11 +190,7 @@ if fitSim
     saveas(gcf,filename)
     
     for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        if isnumeric(snr)
-            plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
-        else
-            plot(kSqFit,kICSNormTauFitFluct(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
-        end
+        plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
     end
     tightfig(gcf)
     
@@ -188,5 +201,5 @@ if fitSim
     saveas(gcf,filename)
     
     filename = [runDir filesep 'analysis' filesep 'fit_info.mat'];
-    save(filename,'opt_params','err_min');
+    save(filename,'opt_params','err_min','manymins','-v7.3');
 end
