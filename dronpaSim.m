@@ -20,6 +20,7 @@
 % T: number of frames
 % w0: PSF size (e-2 radius)
 % N_diff: number of diffusing molecules
+% D: diffusion coefficient
 % k_on: rate of blinking on
 % k_off: rate of blinking off
 % k_p: rate of bleaching
@@ -50,7 +51,7 @@
 % - PSF should have stochastic size
 % - Laser power should affect blinking on rate
 %
-function [J,sim_info] = dronpaSim(sz,T,w0,N_diff,diffusion,k_on,k_off,k_p,...
+function [J,sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
     prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,varargin)
 
 % num_filaments = 20;
@@ -293,7 +294,7 @@ tic
 
 for t = 2:T
     for i = 1:N_diff
-        particles.diffusing.position(i,:,t) = particles.diffusing.position(i,:,t-1) + sqrt(2*diffusion)*randn(1,2); % propagate positions by diffusion
+        particles.diffusing.position(i,:,t) = particles.diffusing.position(i,:,t-1) + sqrt(2*D)*randn(1,2); % propagate positions by diffusion
     end
 end
 
@@ -348,18 +349,19 @@ for t = 1:T
 end
 % resulting image with rounded positions to place in appropriate pixel.
 % Note modulo is taken for periodic boundaries.
-plot(squeeze(sum(sum(J))))
+% plot(squeeze(sum(sum(J)))) % intensity trace
 toc
 if addNoise
     for t = 1:T
-        sp_mean_t = mean(mean(J(:,:,t),1),2);
-        wgn_t = sp_mean_t/snr*randn(sz);
-        J(:,:,t) = J(:,:,t) + wgn_t;
+        sp_mean_t = mean(mean(J(:,:,t),1),2); % spatial mean of image series at time t
+        wgn_t = sp_mean_t/snr*randn(sz); % white Gaussian noise 
+        J(:,:,t) = J(:,:,t) + wgn_t; % add noise to image at time t
     end
 end
 
 % save simulation info
-sim_info.N_diff = N_diff;
-sim_info.N_imm = N_imm;
-sim_info.N_agg = N_agg;
-sim_info.N = N;
+sim_info.N_diff = N_diff; % number of diffusing particles (input param)
+sim_info.N_imm = N_imm; % number of immobile particles
+sim_info.N_agg = N_agg; % number of aggregated particles (disjoint from N_imm)
+sim_info.N = N; % total number of particles
+sim_info.mean_imgser = mean(mean(mean(J))); % mean over time and space of image series
