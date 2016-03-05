@@ -5,7 +5,7 @@ rng shuffle % reseed the random number generator; otherwise same random
 
 %%%%%% Internal Parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-codePath = ''; % path where all codes are stored (recursive)
+codePath = 'C:\Users\SimonS\Dropbox (Personal)\Research\PhD\SOFI-Project'; % path where all codes are stored (recursive)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -13,20 +13,20 @@ codePath = ''; % path where all codes are stored (recursive)
 
 % (refer to dronpaSim.m for variable definitions)
 
-nReps = 5; % number of simulations
+nReps = 1; % number of simulations
 
 % main params
 sz = 64; 
-T = 128; 
+T = 2048; 
 w0 = 4; 
 N_diff = 500; 
 D = 1; 
-k_on = 0.1; 
+k_on = 0.2; 
 k_off = 0.1; 
 k_p = 0; 
 
 % aggregate params
-prob_agg = 0;
+prob_agg = 0.5;
 mean_agg_num = 5;
 std_agg_dist = 0.1; 
 
@@ -40,6 +40,9 @@ snr = 8; % signal-to-noise ratio (enter 'none' for no noise)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%% kICS Fitting %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+do_fit = 0; % run fit algorithm
+do_theory = 1; % superimpose theory curves on simulation curves
 
 normByLag = 0; % actual lag values i.e. tau=0 is 0th lag
 
@@ -65,10 +68,24 @@ kSqMax = 3; % max |k|^2 value to fit/plot
 
 addpath(genpath(codePath)) % add all codes to path variable (recursive)
 
+% definitions for true parameters
+I0 = 1; % PSF amplitude assumed to be 1 in some arbitrary units
+b = 1; % brightness assumed to be 1 in some arbitrary units
+V = sz^2; % volume
+K = k_on + k_off;
+noise_factor = 4*V/(k_on^2/K^2*b^2*I0^2*w0^4*pi^2); % factor in front of noise term
+%
+
+theory_params = zeros(nReps,6); % array to store theory params
 J = zeros(sz,sz,T,nReps); 
 for n = 1:nReps % create simulations
-    [J(:,:,:,n)] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
+    [J(:,:,:,n),sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
         prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr);
+    N = sim_info.N; % total number of particles
+    mean_imgser = sim_info.mean_imgser; % mean in space and time of image series
+    f_d = N_diff/N; % fraction of diffusing particles
+    sigma = noise_factor/N*(mean_imgser/snr)^2; % noise term in fitting function
+    theory_params(n,:) = [D,k_on,k_off,f_d,w0,sigma]; % true parameters of simulation  
 end
 
 %% Run kICS
@@ -97,19 +114,21 @@ kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVe
 kICSCorrSubset = mean(abs(r_k_abs(kSqSubsetInd,:,:)),3); % corresponding subset of kICS ACF
 kICSStdDev = std(abs(r_k_abs(kSqSubsetInd,:,:)),0,3)/sqrt(nReps); % standard deviation of ACF (relevant if nReps > 1)
 
-err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
+if do_fit
+	err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
+	
+	tic
+	%
+	opts = optimoptions(@fmincon,'Algorithm','interior-point');
+	problem = createOptimProblem('fmincon','objective',...
+		err,'x0',params_guess,'lb',lb,'ub',ub,'options',opts);
+	gs = GlobalSearch; % global search object
+	[opt_params,err_min] = run(gs,problem)
+	%
+	fitTime = toc; disp(['fitTime = ' num2str(fitTime)]); % time to fit
+end
 
-tic
-%
-opts = optimoptions(@fmincon,'Algorithm','interior-point');
-problem = createOptimProblem('fmincon','objective',...
-    err,'x0',params_guess,'lb',lb,'ub',ub,'options',opts);
-gs = GlobalSearch; % global search object
-[opt_params,err_min] = run(gs,problem)
-%
-fitTime = toc; disp(['fitTime = ' num2str(fitTime)]); % time to fit
-
-kSqFit = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result
+kSq2Plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result/theory curves
 
 figure()
 hold on
@@ -117,15 +136,24 @@ hold on
 color = lines(length(plotTauLags)); 
 plotLegend = cell(1,length(plotTauLags));
 h_sim_data = zeros(1,length(plotTauLags));
-if nReps == 1 % loop and plot over fixed simulation number
-    for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:))
-        h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),'.','MarkerSize',16,'Color',color(tauInd,:));
+% plot fit and/or theoy curves
+for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
+    if do_fit
+        plot(kSq2Plot,kICSNormTauFitFluctNoise(opt_params,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
+            'Color',color(tauInd,:),'linewidth',1.4)
+    elseif do_theory
+        plot(kSq2Plot,kICSNormTauFitFluctNoise(theory_params,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
+            '--','Color',color(tauInd,:),'linewidth',1.4) % FIX: should generalize for nReps simulations
+    end
+end
+% plot simulation data
+if nReps == 1 
+    for tauInd = 1:length(plotTauLags) 
+		h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),'.','MarkerSize',16,'Color',color(tauInd,:));
         plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
     end
 else
-    for tauInd = 1:length(plotTauLags) % 1:length(plotTauLags)
-        plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:),'linewidth',1.4)
+    for tauInd = 1:length(plotTauLags) 
         h_sim_data(tauInd) = errorbar(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),...
             kICSStdDev(:,plotTauLags(tauInd)+1),'.','Color',color(tauInd,:),'MarkerSize',12);
         plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$']; 
