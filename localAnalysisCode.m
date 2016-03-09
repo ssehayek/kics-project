@@ -55,7 +55,7 @@ tauVector = 1:5; % tau values to fit
 
 params_guess = 100*rand(1,6); % guess params for fit
 lb = eps*ones(1,6); % lower bound for fit params
-ub = [100 1 1 100 100 1000]; % upper bound
+ub = [100 1 1 1 100 1000]; % upper bound
 
 % plot kICS ACF
 plotTauLags = [1:5]; % tau values to plot
@@ -76,17 +76,29 @@ K = k_on + k_off;
 noise_factor = 4*V/(k_on^2/K^2*b^2*I0^2*w0^4*pi^2); % factor in front of noise term
 %
 
-theory_params = zeros(nReps,6); % array to store theory params
+% storing true params
+f_d = zeros(nReps,1); % array to store true diffusing fractions from each simulation
+sigma = zeros(nReps,1); % array to store true noisy term from each simulation
+
+true_params = zeros(nReps,6); % array to store true params of simulation
+%
+
 J = zeros(sz,sz,T,nReps); 
 for n = 1:nReps % create simulations
     [J(:,:,:,n),sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
         prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr);
+    
+    % determine true params
     N = sim_info.N; % total number of particles
     mean_imgser = sim_info.mean_imgser; % mean in space and time of image series
-    f_d = N_diff/N; % fraction of diffusing particles
-    sigma = noise_factor/N*(mean_imgser/snr)^2; % noise term in fitting function
-    theory_params(n,:) = [D,k_on,k_off,f_d,w0,sigma]; % true parameters of simulation  
+    f_d(n) = N_diff/N; % fraction of diffusing particles
+    sigma(n) = noise_factor/N*(mean_imgser/snr)^2; % noise term in fitting function
+    true_params(n,:) = [D,k_on,k_off,f_d(n),w0,sigma(n)]; % true parameters of simulation 
+    %
 end
+true_params_mean = mean(true_params,1); % mean of true params over all simulations
+                                   % note only f_d and sigma are
+                                   % variable across simulations
 
 %% Run kICS
 
@@ -142,8 +154,8 @@ for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
         plot(kSq2Plot,kICSNormTauFitFluctNoise(opt_params,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
             'Color',color(tauInd,:),'linewidth',1.4)
     elseif do_theory
-        plot(kSq2Plot,kICSNormTauFitFluctNoise(theory_params,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
-            '--','Color',color(tauInd,:),'linewidth',1.4) % FIX: should generalize for nReps simulations
+        plot(kSq2Plot,kICSNormTauFitFluctNoise(true_params_mean,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
+            '--','Color',color(tauInd,:),'linewidth',1.4) 
     end
 end
 % plot simulation data
