@@ -41,9 +41,6 @@
 
 ############## kICS FIT ############### 
 
-# choose whether to use old fit, or new fit
-# 1 | legacy
-
 # parallel boolean
 1 | parallel
 # if parallel is true, choose number of start points to try
@@ -52,9 +49,8 @@
 0 | tolX
 # objective function tolerance
 0 | tolFun
-
-# GPU boolean
-0 | useGPU
+# output manymins object
+0 | output_mins
 
 # lag to norm by (actual lag value)
 0 | normByLag
@@ -65,7 +61,7 @@
 3 | kSqMax
 
 # Format 
-# [D,k_on,k_off,frac,w0,sigma]
+# [D,k_on,k_off,frac,w0,eta']
 #
 [100*rand 100*rand rand rand 100*rand 1000*rand] | params_guess
 eps*ones(1,6) | lb

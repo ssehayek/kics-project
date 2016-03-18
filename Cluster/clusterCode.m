@@ -19,8 +19,8 @@ end
 if prob_agg == 0 || mean_agg_num == 0 % no aggregates
     prob_agg = 0; mean_agg_num = 0;
 end
-if N_diff == 0 % no diffusers
-    D = 0;
+if N_diff == 0 || D == 0 % no diffusers, or diffusion
+    N_diff = 0; D = 0;
 end
 if k_off == 0 % no blinking
     k_on = 1;
@@ -50,7 +50,9 @@ if createSim
     if exist(simdirpath_abs,'dir') == 0 % create simualation dir if non-existing
         mkdir(simdirpath_abs);
     end
-    [simfilepath_abs,num_rep] = iterateFilename(simfilepath_abs);
+    [simfilepath_abs,num_rep] = iterateFilename(simfilepath_abs); % if simulation with these
+                                                                  % params already exists, create
+                                                                  % another one
     disp(['creating simulation repetition: ',num2str(num_rep),'.'])
 elseif ~createSim && ~fitSim % exits if no routine is chosen
     disp('"createSim" and "fitSim" cannot both be 0.'); 
@@ -110,7 +112,7 @@ if fitSim && ~createSim % if file wasn't created, load it
 end
 
 r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,T]),'normByLag',normByLag); % kICS correlation of data
-[r_k_circ,kSqVector] = circular(r_k_norm,floor(sz/2)-2); % circular average over |k|^2
+[r_k_circ,kSqVector] = circular(r_k_norm); % circular average over |k|^2
 r_k_abs = abs(r_k_circ); % get rid of complex values
 if any(strcmpi(normByLag,{'none','noNorm',''})) % some normalization for when the kICS AC is not normalized, otherwise the fit is unreasonable
     max_value = max(max(r_k_abs));
@@ -150,7 +152,8 @@ if fitSim
         [opt_params,err_min,~,~,manymins] = run(ms,problem,startPts);
         disp(['optimal parameters: ',num2str(opt_params)])
         disp(['minimum objective function: ',num2str(err_min)])
-        
+        disp(['true parameters: ',num2str(sim_info.true_params)])
+
         delete(gcp) % delete parallel pool object
     else
         opts = optimoptions(@fmincon,'Algorithm','interior-point');
@@ -202,4 +205,9 @@ if fitSim
     
     filename = [runDir filesep 'analysis' filesep 'fit_info.mat'];
     save(filename,'opt_params','err_min','manymins','-v7.3');
+end	if output_mins
+		  save(filename,'opt_params','err_min','manymins','-v7.3');
+	else
+		  save(filename,'opt_params','err_min');
+	end
 end
