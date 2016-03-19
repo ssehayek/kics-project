@@ -1,6 +1,7 @@
 *.asv
 *.pdf
 *.rtf
+*.png
 
 # matlab/mathematica associations
 *.fig
