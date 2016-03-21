@@ -359,9 +359,27 @@ if addNoise
     end
 end
 
-% save simulation info
+%% save simulation info
+% store raw info in "sim_info"
 sim_info.N_diff = N_diff; % number of diffusing particles (input param)
 sim_info.N_imm = N_imm; % number of immobile particles
 sim_info.N_agg = N_agg; % number of aggregated particles (disjoint from N_imm)
 sim_info.N = N; % total number of particles
 sim_info.mean_imgser = mean(mean(mean(J))); % mean over time and space of image series
+
+% definitions for true parameters
+I0 = 1; % PSF amplitude assumed to be 1 in some arbitrary units
+b = 1; % brightness assumed to be 1 in some arbitrary units
+V = sz^2; % volume
+K = k_on + k_off; % sum of blinking rates
+noise_factor = 4*V/(k_on^2/K^2*b^2*I0^2*w0^4*pi^2); % factor in front of noise term
+
+% true fit params
+sim_info.D = D; % diffusion
+sim_info.k_on = k_on; % blink on rate
+sim_info.k_off = k_off; % blink off rate
+sim_info.f_d = N_diff/N; % diffusing fraction
+sim_info.w0 = w0; % PSF size (e-2 radius)
+sim_info.eta_p = noise_factor/N*(sim_info.mean_imgser/snr)^2; % noise term
+
+sim_info.true_params = [D,k_on,k_off,sim_info.f_d,w0,sim_info.eta_p]; % store all true fit params

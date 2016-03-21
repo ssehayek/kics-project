@@ -68,18 +68,7 @@ kSqMax = 3; % max |k|^2 value to fit/plot
 
 addpath(genpath(codePath)) % add all codes to path variable (recursive)
 
-% definitions for true parameters
-I0 = 1; % PSF amplitude assumed to be 1 in some arbitrary units
-b = 1; % brightness assumed to be 1 in some arbitrary units
-V = sz^2; % volume
-K = k_on + k_off;
-noise_factor = 4*V/(k_on^2/K^2*b^2*I0^2*w0^4*pi^2); % factor in front of noise term
-%
-
 % storing true params
-f_d = zeros(nReps,1); % array to store true diffusing fractions from each simulation
-sigma = zeros(nReps,1); % array to store true noisy term from each simulation
-
 true_params = zeros(nReps,6); % array to store true params of simulation
 %
 
@@ -87,14 +76,8 @@ J = zeros(sz,sz,T,nReps);
 for n = 1:nReps % create simulations
     [J(:,:,:,n),sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
         prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr);
-    
-    % determine true params
-    N = sim_info.N; % total number of particles
-    mean_imgser = sim_info.mean_imgser; % mean in space and time of image series
-    f_d(n) = N_diff/N; % fraction of diffusing particles
-    sigma(n) = noise_factor/N*(mean_imgser/snr)^2; % noise term in fitting function
-    true_params(n,:) = [D,k_on,k_off,f_d(n),w0,sigma(n)]; % true parameters of simulation 
-    %
+
+    true_params(n,:) = sim_info.true_params; % determine true params for each simulation
 end
 true_params_mean = mean(true_params,1); % mean of true params over all simulations
                                    % note only f_d and sigma are
@@ -107,10 +90,10 @@ r_k_norm = zeros(sz,sz,T,nReps);
 for n = 1:nReps
     r_k_norm(:,:,:,n) = kICS3(J(:,:,:,n)-repmat(mean(J(:,:,:,n),3),[1,1,T]),'normByLag',normByLag); % kICS autocorrelation function (ACF)
     if n == 1
-        [r_k_circ,kSqVector] = circular(r_k_norm(:,:,:,n),floor(sz/2)-2); % circular averaging over same |k|^2 in kICS ACF
+        [r_k_circ,kSqVector] = circular(r_k_norm(:,:,:,n)); % circular averaging over same |k|^2 in kICS ACF
         r_k_circ = repmat(r_k_circ,[1,1,nReps]);
     else
-        [r_k_circ(:,:,n),~] = circular(r_k_norm(:,:,:,n),floor(sz/2)-2); 
+        [r_k_circ(:,:,n),~] = circular(r_k_norm(:,:,:,n));
     end
     r_k_abs = abs(r_k_circ); % get rid of complex values
 end
