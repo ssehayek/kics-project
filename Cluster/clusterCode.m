@@ -205,9 +205,10 @@ if fitSim
     
     filename = [runDir filesep 'analysis' filesep 'fit_info.mat'];
     save(filename,'opt_params','err_min','manymins','-v7.3');
-end	if output_mins
-		  save(filename,'opt_params','err_min','manymins','-v7.3');
-	else
-		  save(filename,'opt_params','err_min');
-	end
+end	
+
+if output_mins
+	  save(filename,'opt_params','err_min','manymins','-v7.3');
+else
+	  save(filename,'opt_params','err_min');
 end
