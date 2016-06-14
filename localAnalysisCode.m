@@ -49,7 +49,7 @@ normByLag = 0; % actual lag values i.e. tau=0 is 0th lag
 % fitting 
 tauVector = 1:5; % tau values to fit
 
-% format [D,k_on,k_off,f_d,w0,sigma]
+% format [D,k_on,k_off,f_d,w0,eta']
 % here "f_d" is the fraction of diffusing particles, and "sigma" is a term
 % which is related to the noise
 
@@ -80,8 +80,29 @@ for n = 1:nReps % create simulations
     true_params(n,:) = sim_info.true_params; % determine true params for each simulation
 end
 true_params_mean = mean(true_params,1); % mean of true params over all simulations
-                                   % note only f_d and sigma are
-                                   % variable across simulations
+                                        % note only f_d and sigma are
+                                        % variable across simulations
+
+%% Fit intensity trace
+
+t = 1:T;
+I_t = squeeze(mean(mean(J,1),2)); % mean intensity trace
+
+bleach_profile = @(x,t) x(1)*exp(-x(2)*t); % bleaching profile for single decay rate model
+% x(1): amplitude
+% x(2): bleach rate
+lb_bleach = [0,0]; % lower-bound of x
+ub_bleach = [Inf,1]; % upper-bound
+x0 = [1,rand()]; % initial guess
+
+x = lsqcurvefit(bleach_profile,x0,t',I_t,lb_bleach,ub_bleach) % LSF
+k_p_fit = x(2); % fit value for k_p
+
+figure()
+hold on
+
+plot(t',I_t)
+plot(t',bleach_profile(x,t))
 
 %% Run kICS
 
@@ -137,8 +158,13 @@ for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
         plot(kSq2Plot,kICSNormTauFitFluctNoise(opt_params,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
             'Color',color(tauInd,:),'linewidth',1.4)
     elseif do_theory
-        plot(kSq2Plot,kICSNormTauFitFluctNoise(true_params_mean,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
-            '--','Color',color(tauInd,:),'linewidth',1.4) 
+        if k_p == 0
+            plot(kSq2Plot,kICSNormTauFitFluctNoise(true_params_mean,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
+                '--','Color',color(tauInd,:),'linewidth',1.4)
+        else
+            plot(kSq2Plot,kICSNormTauFitFluctNoiseBleach(true_params_mean,kSq2Plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
+                '--','Color',color(tauInd,:),'linewidth',1.4)
+        end
     end
 end
 % plot simulation data

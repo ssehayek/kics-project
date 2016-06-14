@@ -56,6 +56,7 @@ if createSim
     disp(['creating simulation repetition: ',num2str(num_rep),'.'])
 elseif ~createSim && ~fitSim % exits if no routine is chosen
     disp('"createSim" and "fitSim" cannot both be 0.'); 
+    exit
 elseif ~createSim && fitSim && ~exist(simfilepath_abs,'file') % exit if simulations don't exist and createSim=0
     disp('Simulations do not exist for these parameters. Please change value of createSim to create this simulation.'); 
     exit 
@@ -67,11 +68,17 @@ if ~isempty(loadRep) % this condition should only be true if createSim=0
     disp(['loading repetition ',num2str(num_rep),' for analysis.'])
 end
 
-new_runName = [runName,'--rep-',num2str(num_rep)]; % append rep number to end of "runName"
+tauMax = max(tauVector);
+runName = strcat('tauMax-',num2str(tauMax),'--kSqMax-',num2str(kSqMax));
+if isempty(runTag) == 0 % append rep number to end of "runName"
+    new_runName = [runName,'--',runTag,'--rep-',num2str(num_rep)];  % new run name (with tag)
+else
+    new_runName = [runName,'--rep-',num2str(num_rep)]; % new run name (no tag)
+end 
 new_runDir = [baseDir,filesep,'queued-jobs',filesep,new_runName]; % append rep number to end of "runDir"
-movefile(runDir,new_runDir) % rename folder with rep number appended
+movefile(runDir,new_runDir) % rename queued job folder to "new_runDir" (within "queued-jobs" folder)
 
-% redefine variables to have rep number appended
+% redefine variables 
 runDir = new_runDir; 
 runName = new_runName;
 
@@ -87,7 +94,8 @@ end
 
 if exist([rundirpath_rel,filesep,runName],'dir') ~= 0 % exits if run with same name already exists
     disp('Run already exists under this name. Please change value of runName.');
-    [error_dir,~] = iterateFilename('error');
+    [error_dir,~] = iterateFilename(['errors',filesep,'error']);
+    mkdir(error_dir)
     movefile(runDir,error_dir); % moves run to "error" folder
     exit
 end
@@ -103,13 +111,46 @@ if createSim
         prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr); % create simulation
     
     save(simfilepath_abs,'J','sim_info'); % save simulation movie
-end
-
-%% Run kICS
-
-if fitSim && ~createSim % if file wasn't created, load it
+elseif fitSim && ~createSim % if file wasn't created, load it
     load(simfilepath_abs)
 end
+
+%% fit intensity trace
+
+mkdir('analysis')
+
+t = 1:T;
+I_t = squeeze(mean(mean(J,1),2)); % mean intensity trace
+
+bleach_profile = @(x,t) x(1)*exp(-x(2)*t); % bleaching profile for single decay rate model
+                                           % x(1): amplitude
+                                           % x(2): bleach rate
+lb_bleach = [0,0]; % lower-bound of x
+ub_bleach = [Inf,1]; % upper-bound
+x0 = [1,rand()]; % initial guess
+
+x = lsqcurvefit(bleach_profile,x0,t',I_t,lb_bleach,ub_bleach) % LSF
+k_p_fit = x(2); % fit value for k_p
+
+figure()
+hold on
+
+plot(t',I_t)
+plot(t',bleach_profile(x,t))
+% labeling
+xlabel('$t$ (frames)','interpreter','latex','fontsize',14)
+ylabel('$\overline{i({\bf r},t)}_t$','interpreter','latex','fontsize',14)
+legend({'simulation','theory'},'fontsize',12,'interpreter','latex')
+
+tightfig(gcf) % no white-space (3rd party package; works for release 2015a)
+
+% save intensity trace with bleach profile fit
+filename = [runDir filesep 'analysis' filesep runName '_intensity_trace.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_intensity_trace.pdf']; % save figure .pdf
+saveas(gcf,filename)
+
+%% run kICS
 
 r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,T]),'normByLag',normByLag); % kICS correlation of data
 [r_k_circ,kSqVector] = circular(r_k_norm); % circular average over |k|^2
@@ -119,21 +160,21 @@ if any(strcmpi(normByLag,{'none','noNorm',''})) % some normalization for when th
     r_k_abs = r_k_abs/max_value;
 end
 cd(runDir)
-mkdir('analysis')
 
 filename = [runDir filesep 'analysis' filesep 'kICS_Data.mat'];
 save(filename,'kSqVector','r_k_abs','r_k_norm'); % save computed kICS ACF
 
-%% kICS Corr Plot
+%% fitting
 
+kSqMinIndex = find(kSqVector >= kSqMin,1,'first') % lowest index, i, which satisfies kSqVector(i) >= kSqMin
+kSqMaxIndex = find(kSqVector <= kSqMax,1,'last') % highest index, j, which satisfies kSqVector(j) <= kSqMax
+kSqVectorSubset = kSqVector(kSqMinIndex:kSqMaxIndex); % all values satisfying kSqMin <= kSqVector <= kSqMax
+kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
+
+kICSCorrSubset = r_k_abs(kSqSubsetInd,:); % corresponding subset of kICS ACF
 if fitSim
-    kSqMinIndex = find(kSqVector >= kSqMin,1,'first') % lowest index, i, which satisfies kSqVector(i) >= kSqMin
-    kSqMaxIndex = find(kSqVector <= kSqMax,1,'last') % highest index, j, which satisfies kSqVector(j) <= kSqMax
-    kSqVectorSubset = kSqVector(kSqMinIndex:kSqMaxIndex); % all values satisfying kSqMin <= kSqVector <= kSqMax
-    kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
-    
-    kICSCorrSubset = r_k_abs(kSqSubsetInd,:); % corresponding subset of kICS ACF
-    err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
+    err = @(params) kICSNormTauFitFluctNoiseBleach(params,kSqVectorSubset,tauVector,...
+        k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
     
     tic
     if parallel
@@ -149,7 +190,11 @@ if fitSim
         % wait for local convergence (if possible) of each point.
         % "opt_params" are the parameters yielding lowest value in
         % objective function, "err_min"
-        [opt_params,err_min,~,~,manymins] = run(ms,problem,startPts);
+        if output_mins
+            [opt_params,err_min,~,~,manymins] = run(ms,problem,startPts);
+        else
+            [opt_params,err_min] = run(ms,problem,startPts);
+        end
         disp(['optimal parameters: ',num2str(opt_params)])
         disp(['minimum objective function: ',num2str(err_min)])
         disp(['true parameters: ',num2str(sim_info.true_params)])
@@ -163,52 +208,75 @@ if fitSim
         [opt_params,err_min] = run(gs,problem);
     end
     fitTime = toc; disp(['fitTime = ' num2str(fitTime)]);
+end
+
+%% plot simulation data
+
+ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit/theory curves
+
+figure()
+hold on
+box on
+
+color = lines(length(plotTauLags));
+plotLegend = cell(1,length(plotTauLags));
+h_sim_data = zeros(1,length(plotTauLags));
+for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
+    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),...
+        '.','markersize',16,'Color',color(tauInd,:)); % plot simulated kICS ACF
+    plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
+end
+% labeling
+xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
+ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
+legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
+xlim([kSqMin kSqMax])
+ylims = get(gca,'ylim');
+ylim([0 ylims(2)])
+tightfig(gcf) 
+
+% save plots without fits
+filename = [runDir filesep 'analysis' filesep runName '_nofit.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_nofit.pdf']; % save figure .pdf
+saveas(gcf,filename)
+
+%% plot theoretical curves
+
+h_theory = zeros(1,length(plotTauLags));
+for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
+    h_theory(tauInd) = plot(ksq2plot,kICSNormTauFitFluctNoiseBleach(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
+        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
+end
+tightfig(gcf)
+
+% save plots with theory curves superimposed
+filename = [runDir filesep 'analysis' filesep runName '_theory_bleach.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_theory_bleach.pdf']; % save figure .pdf
+saveas(gcf,filename)
+
+%% plot best fit curves
+
+if fitSim
+    delete(h_theory) % delete theory curve handles
     
-    kSqFit = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result
-    
-    figure()
-    hold on
-    box on
-    
-    color = lines(length(plotTauLags));
-    plotLegend = cell(1,length(plotTauLags));
-    h_sim_data = zeros(1,length(plotTauLags));
     for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),'.','markersize',16,'Color',color(tauInd,:)); % plot heuristic kICS ACF
-        plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
-    end
-    % labeling
-    xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
-    ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
-    legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
-    xlim([kSqMin kSqMax])
-    ylims = get(gca,'ylim');
-    ylim([0 ylims(2)])
-    tightfig(gcf)
-    
-    % save plots without fits
-    filename = [runDir filesep 'analysis' filesep paramStr4 '_nofit.fig']; % save figure .fig
-    saveas(gcf,filename)
-    filename = [runDir filesep 'analysis' filesep paramStr4 '_nofit.pdf']; % save figure .pdf
-    saveas(gcf,filename)
-    
-    for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        plot(kSqFit,kICSNormTauFitFluctNoise(opt_params,kSqFit,plotTauLags(tauInd),'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
+        plot(ksq2plot,kICSNormTauFitFluctNoiseBleach(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
+            'Color',color(tauInd,:)) % plot best fit kICS ACF
     end
     tightfig(gcf)
     
     % save plots with fits
-    filename = [runDir filesep 'analysis' filesep paramStr4 '.fig']; % save figure .fig
+    filename = [runDir filesep 'analysis' filesep runName '.fig']; % save figure .fig
     saveas(gcf,filename)
-    filename = [runDir filesep 'analysis' filesep paramStr4 '.pdf']; % save figure .pdf
+    filename = [runDir filesep 'analysis' filesep runName '.pdf']; % save figure .pdf
     saveas(gcf,filename)
     
     filename = [runDir filesep 'analysis' filesep 'fit_info.mat'];
-    save(filename,'opt_params','err_min','manymins','-v7.3');
-end	
-
-if output_mins
-	  save(filename,'opt_params','err_min','manymins','-v7.3');
-else
-	  save(filename,'opt_params','err_min');
+    if output_mins
+        save(filename,'opt_params','k_p_fit','err_min','manymins','-v7.3');
+    else
+        save(filename,'opt_params','k_p_fit','err_min');
+    end
 end
