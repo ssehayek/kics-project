@@ -8,3 +8,14 @@
 !movieplayer.fig
 *.nb
 *.mat
+
+# hide untracked files for now
+kICS\ GUI/*
+Analysis\ Codes/*
+*notes
+randFilaments.m
+degeneracy.m
+Fitting/biasFluctFunction.m
+Fitting/kICSFitBiasFluct.m
+Fitting/kICSNormTauFitFluct.m
+kICS\ Tools/bleachkICS.m
