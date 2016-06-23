@@ -8,19 +8,22 @@
 CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code"
 NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/job_5"
 CODECLASS="SOFI-Project"
-RUNNAME="tau1-5--kSqMax-3"
+RUNTAG="manymins"
 
 ###############################################
 cd "${NEWDIR}"
 
 MSCRIPT="${CODEPATH}/${CODECLASS}/clusterCode.m"
 
-matlab -nodisplay < "$MSCRIPT" > "${NEWDIR}/${RUNNAME}.out" 2> "${NEWDIR}/${RUNNAME}.err"
+DATETAG=$(date +"%Y-%m-%d-%Hh%Mm%Ss")
+matlab -nodisplay < "$MSCRIPT" > "${NEWDIR}/${DATETAG}.out" 2> "${NEWDIR}/${DATETAG}.err"
 
 if [[ -d "${NEWDIR}" ]] 			# only execute if new directory exists
 then 
 	cd "${NEWDIR}"			
 	rm getAnalysisInput.m		
 
-	chmod -R -f 740 "${NEWDIR}" 	# change permissions
+	chmod -R -f 740 "${NEWDIR}" # change permissions
 fi
+
+rm condor_script.mv submitMatlabJob.mv

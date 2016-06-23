@@ -1,11 +1,13 @@
 #!/bin/bash
 
+Q_TYPE="condor" # input either "condor" or "torque"
+
 ########### INPUT VARIABLES ###################
 
 # These variables don't need to be updated in either analysisInput.txt, or submitMatlabJob
 
-RUNNAME="tau1-5--kSqMax-3"													# default: $(date +"%Y-%m-%d-%Hh%Mm%Ss")
-RUNCLASS="pure-diffusion-test" 												# organizational subdirectory
+RUNTAG="manymins"																	# 
+RUNCLASS="high-noise" 														# organizational subdirectory
 CODECLASS="SOFI-Project" 													# project name
 CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code" 					# folder containing all codes (recursive)
 BASEDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/${CODECLASS}/main" 	# folder for storing the runs
@@ -21,7 +23,8 @@ LOADREP_ARR=1 			# simulation repetition numbers to load (only relevant if FITSI
 if [[ ${CREATESIM} -eq 1 ]] # $LOADREP_ARR is not relevant if creating another simulation,
                             # in this case $LOADREP_ARR is set to empty MATLAB array
 then 
-	LOADREP_ARR="[]"      
+	unset LOADREP_ARR
+	LOADREP_ARR="[]"   
 fi
 
 NREPS=${#LOADREP_ARR[@]} # number of elements in ${LOADREP_ARR}
@@ -32,11 +35,6 @@ do
 	#rm program_output.txt
 	
 	LOADREP=${LOADREP_ARR[$i]}
-
-	if [[ -z "${RUNNAME}" ]] # set RUNNAME to default if variable is empty
-	then
-		RUNNAME=$(date +"%Y-%m-%d-%Hh%Mm%Ss")
-	fi
 
 	NEWDIR="${BASEDIR}/queued-jobs/job" # job temp directory
 
@@ -51,7 +49,7 @@ do
 
 	cd "${BASEDIR}"
 
-	sed -i '/runName/c\'\'"${RUNNAME}\' |"' runName' analysisInput.txt
+	sed -i '/runTag/c\'\'"${RUNTAG}\' |"' runTag' analysisInput.txt
 	sed -i '/runClass/c\'\'"${RUNCLASS}\' |"' runClass' analysisInput.txt
 	sed -i '/runDir/c\'\'"${NEWDIR}\' |"' runDir' analysisInput.txt
 	sed -i '/baseDir/c\'\'"${BASEDIR}\' |"' baseDir' analysisInput.txt
@@ -64,7 +62,9 @@ do
 	sed -i '/NEWDIR=/c\NEWDIR='\""${NEWDIR}"\"'' submitMatlabJob
 	sed -i '/CODEPATH=/c\CODEPATH='\""${CODEPATH}"\"'' submitMatlabJob
 	sed -i '/CODECLASS=/c\CODECLASS='\""${CODECLASS}"\"'' submitMatlabJob
-	sed -i '/RUNNAME=/c\RUNNAME='\""${RUNNAME}"\"'' submitMatlabJob
+	sed -i '/RUNTAG=/c\RUNTAG='\""${RUNTAG}"\"'' submitMatlabJob
+	
+	#sed -i '/initialdir=/c\initialdir='"${NEWDIR}"'' condor_script
 
 	cd "${CODEPATH}/GeneralUtilities"
 	#ln -s ${CODEPATH}/GeneralUtilities/getAnalysisInput.m ${NEWDIR}
@@ -80,20 +80,31 @@ do
 
 	cp submitMatlabJob{,.mv}
 	mv submitMatlabJob.mv "$NEWDIR"
+	
+	if [[ "$Q_TYPE" == "condor" ]]
+	then 
+		cp condor_script{,.mv}
+		mv condor_script.mv "$NEWDIR"		
+	fi
 
 	cd "${NEWDIR}"
 
 	### SUBMIT JOB TO QUEUE
 
-	qsub -V \
-		-o outputfile \
-		-e errorfile \
-		-l h_rt=24:00:00 \
-		-cwd \
-		-N "simon_job" \
-		-m e \
-		-M "${USER}@gmail.com" \
-		"submitMatlabJob.mv"
-
-	rm submitMatlabJob.mv
+	if [[ "$Q_TYPE" == "torque" ]]
+	then	
+		qsub -V \
+			-o outputfile \
+			-e errorfile \
+			-l h_rt=24:00:00 \
+			-cwd \
+			-N "simon_job" \
+			-m e \
+			-M "${USER}@gmail.com" \
+			"submitMatlabJob.mv"
+			
+		rm submitMatlabJob.mv
+	else 
+		condor_submit condor_script.mv
+	fi
 done

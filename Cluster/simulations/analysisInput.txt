@@ -11,8 +11,8 @@
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main' | baseDir
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/SimulationData' | saveSimDir
 
-'tau1-5--kSqMax-3' | runName
-'pure-diffusion-test' | runClass
+'manymins' | runTag
+'high-noise' | runClass
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/job_5' | runDir
 
 ######### SIMULATION VARIABLES #########
