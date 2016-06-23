@@ -1,0 +1,47 @@
+########### SAVE DIRECTORIES ########### (change in preSubScript)
+
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/' | codePath
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analysis' | baseDir
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/SimulationData' | saveSimDir
+
+'' | runTag
+'' | runClass
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analysis/queued-jobs/job_1' | runDir
+
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analysis/Saved Sessions/Feb 24/ROI_X_250_336_Y_31_125_TOI_2550_4000.sv.mat' | loadPath
+
+############## kICS FIT ############### 
+
+# parallel boolean
+1 | parallel
+# if parallel is true, choose number of start points to try
+10^5 | startPts
+# point tolerance
+0 | tolX
+# objective function tolerance
+0 | tolFun
+# output manymins object
+1 | output_mins
+
+# lag to norm by (actual lag value)
+0 | normByLag
+
+# lags to fit (actual tau values)
+[1:5] | tauVector
+0.01 | kSqMin
+3 | kSqMax
+
+# Format 
+# [D,k_on,k_off,frac,w0,eta']
+#
+[100*rand 100*rand rand rand 100*rand 1000*rand] | params_guess
+eps*ones(1,6) | lb
+[100 1 1 1 100 Inf] | ub
+# [100*rand 100*rand rand rand 0 0] | params_guess
+# [eps eps eps eps 0 0] | lb
+# [100 1 1 1 0 0] | ub
+############## kICS PLOT ############## 
+
+# lags to plot (subset of tauVector)
+tauVector | plotTauLags
+1000 | nPtsFitPlot
