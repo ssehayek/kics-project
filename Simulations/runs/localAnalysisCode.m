@@ -13,12 +13,11 @@ codePath = 'C:\Users\SimonS\Dropbox (Personal)\Research\PhD\SOFI-Project'; % pat
 
 % (refer to dronpaSim.m for variable definitions)
 
-nReps = 1; % number of simulations
-
 % main params
 sz = 64; 
-T = 2048; 
-w0 = 4; 
+T = 50; 
+n_sub_frames = 10;
+w0 = 0.61*522/(2.8*178); 
 N_diff = 500; 
 D = 1; 
 k_on = 0.2; 
@@ -39,6 +38,33 @@ snr = 8; % signal-to-noise ratio (enter 'none' for no noise)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%%%% ICS Options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+use_ics_guess = 1;
+%%% relevant only if value is 1 %%%
+
+% split data into 'n_ics_subs' many subsets  
+n_ics_subs = 10;
+% spatial lags to fit in ICS
+xi_lags = -15:15;
+eta_lags = xi_lags;
+%
+
+% lower bound of |k|^2 for which kICS tau = 0 lag (unnormalized) is noise
+% dominated (should appear flat)
+% CHOOSE THIS VALUE CAREFULLY
+ksq_noise_lb = 15;
+
+%%%%%%
+
+%%%%%% kICS Options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% choose whether to Fourier interpolate while circularly averaging
+do_interp = 1;
+
+% number of angles to sample for fixed |k|
+n_theta = 1000;
+
 %%%%%% kICS Fitting %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 do_fit = 0; % run fit algorithm
@@ -49,90 +75,129 @@ normByLag = 0; % actual lag values i.e. tau=0 is 0th lag
 % fitting 
 tauVector = 1:5; % tau values to fit
 
-% format [D,k_on,k_off,f_d,w0,eta']
-% here "f_d" is the fraction of diffusing particles, and "sigma" is a term
+%%% OLD FORMAT
+% format [D,k_on,k_off,f_d,w0,eta_p]
+% here "f_d" is the fraction of diffusing particles, and "eta'" is a term
 % which is related to the noise
-
-params_guess = 100*rand(1,6); % guess params for fit
+%
+% params_guess = 100*rand(1,6); % guess params for fit
+% lb = eps*ones(1,6); % lower bound for fit params
+% ub = [10 1 1 1 10 Inf]; % upper bound
+%
+%%% NEW FORMAT
+% format [D,r,K,f_d,w0,eta_p]
+% here "K" is the sum of the blinking rates, and "r" is the fraction
+% k_on/K; the other terms are defined as before ("eta_p" now has an extra
+% factor of "r")
+params_guess = [10*rand,rand,2*rand,rand,10*rand,1000*rand]; % guess params for fit
 lb = eps*ones(1,6); % lower bound for fit params
-ub = [100 1 1 1 100 1000]; % upper bound
+ub = [10,1,2,1,10,Inf]; % upper bound
 
 % plot kICS ACF
-plotTauLags = [1:5]; % tau values to plot
+plotTauLags = tauVector; % tau values to plot
 nPtsFitPlot = 1000; % number of |k|^2 pts to plot in best fit function
-kSqMin = 0.01; % min |k|^2 value to fit/plot
-kSqMax = 3; % max |k|^2 value to fit/plot
+% min |k|^2 value to fit/plot
+kSqMin = 0.01; 
+% max |k|^2 value to fit/plot, put 'max' to fit entire range
+kSqMax = 'max'; 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Run Simulations
 
 addpath(genpath(codePath)) % add all codes to path variable (recursive)
 
-% storing true params
-true_params = zeros(nReps,6); % array to store true params of simulation
+J = zeros(sz,sz,T); 
+% create simulation
+[J,sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
+    prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr,...
+    'subframes',n_sub_frames);
 %
 
-J = zeros(sz,sz,T,nReps); 
-for n = 1:nReps % create simulations
-    [J(:,:,:,n),sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
-        prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr);
+% corrections to true parameters when fitting for mean on fraction, k_on/K,
+% and sum of rates, K=k_on+k_off
+K = k_on + k_off;
 
-    true_params(n,:) = sim_info.true_params; % determine true params for each simulation
-end
-true_params_mean = mean(true_params,1); % mean of true params over all simulations
-                                        % note only f_d and sigma are
-                                        % variable across simulations
+sim_info.eta_p = sim_info.eta_p*k_on/K;
+
+sim_info.true_params(2) = k_on/K;
+sim_info.true_params(3) = K;
+sim_info.true_params(6) = sim_info.eta_p;
+%
 
 %% Fit intensity trace
 
-t = 1:T;
-I_t = squeeze(mean(mean(J,1),2)); % mean intensity trace
-
-bleach_profile = @(x,t) x(1)*exp(-x(2)*t); % bleaching profile for single decay rate model
-% x(1): amplitude
-% x(2): bleach rate
-lb_bleach = [0,0]; % lower-bound of x
-ub_bleach = [Inf,1]; % upper-bound
-x0 = [1,rand()]; % initial guess
-
-x = lsqcurvefit(bleach_profile,x0,t',I_t,lb_bleach,ub_bleach) % LSF
-k_p_fit = x(2); % fit value for k_p
-
-figure()
-hold on
-
-plot(t',I_t)
-plot(t',bleach_profile(x,t))
+[p,ci] = bleachFit(J,'showfig') 
+k_p_fit = p(2); % fitted value for bleaching rate
 
 %% Run kICS
 
-r_k_norm = zeros(sz,sz,T,nReps);
+kSqVector = getKSqVector(J);
+[kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMin',kSqMin,'kSqMax',kSqMax);
 
-for n = 1:nReps
-    r_k_norm(:,:,:,n) = kICS3(J(:,:,:,n)-repmat(mean(J(:,:,:,n),3),[1,1,T]),'normByLag',normByLag); % kICS autocorrelation function (ACF)
-    if n == 1
-        [r_k_circ,kSqVector] = circular(r_k_norm(:,:,:,n)); % circular averaging over same |k|^2 in kICS ACF
-        r_k_circ = repmat(r_k_circ,[1,1,nReps]);
-    else
-        [r_k_circ(:,:,n),~] = circular(r_k_norm(:,:,:,n));
+r_k_circ_uncut = zeros(length(kSqVector),length(tauVector));
+r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
+
+%
+tic
+
+r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)]),'normByLag',normByLag); % kICS autocorrelation function (ACF)
+if do_interp
+    n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
+    
+    r_k_tau = r_k_norm(:,:,tauVector+1);
+    parfor tau_i = 1:length(tauVector) 
+        r_k_circ(:,tau_i) = ellipticInterp(r_k_tau(:,:,tau_i),kSqVectorSubset,n_theta_arr);
     end
-    r_k_abs = abs(r_k_circ); % get rid of complex values
+    delete(gcp)
+else
+    r_k_circ_uncut = circular(r_k_norm(:,:,tauVector+1));
+    r_k_circ = r_k_circ_uncut(kSqSubsetInd,:);
 end
-%% kICS Corr Plot
+r_k_abs = abs(r_k_circ); % get rid of complex values
+
+toc
+%
+
+%% ICS for guesses
+
+if use_ics_guess
+    ics_run = ICSCompiler(J,xi_lags,eta_lags,'subsets',n_ics_subs,...
+        'showfigs');
+    
+    % compute tau = 0 lag in kICS
+    n_theta_arr = n_theta*ones(1,length(kSqVector));
+    
+    % kICS autocorrelation unnormalized
+    r_k_tau_0 = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)]),'normByLag','none'); 
+    r_k_circ_0 = ellipticInterp(r_k_tau_0(:,:,1),kSqVector,n_theta_arr);
+    %
+    
+    % get param guesses for kICS fitting
+    [params_guess,lb,ub] = getkICSGuess(J,ics_run,p,kSqVector,r_k_circ_0,...
+        ksq_noise_lb,'showfig');
+    %
+    
+    % check if guesses concur with true params
+    param_names = {'diffusion','r','K','f_d','w0','eta_p'};
+    for ii = 1:length(params_guess)
+        if sim_info.true_params(ii) < lb(ii) || sim_info.true_params(ii) > ub(ii)
+            warning(['True simulation param is not within guessed bounds',...
+                ' for param: ''',param_names{ii},'''.'])
+        end
+    end
+    %
+end
+
+%% kICS fitting
 
 % close all
 
-kSqMinIndex = find(kSqVector >= kSqMin,1,'first') % lowest index, i, which satisfies kSqVector(i) >= kSqMin
-kSqMaxIndex = find(kSqVector <= kSqMax,1,'last') % highest index, j, which satisfies kSqVector(j) <= kSqMax
-kSqVectorSubset = kSqVector(kSqMinIndex:kSqMaxIndex); % all values satisfying kSqMin <= kSqVector <= kSqMax
-kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
-
-kICSCorrSubset = mean(abs(r_k_abs(kSqSubsetInd,:,:)),3); % corresponding subset of kICS ACF
-kICSStdDev = std(abs(r_k_abs(kSqSubsetInd,:,:)),0,3)/sqrt(nReps); % standard deviation of ACF (relevant if nReps > 1)
+kICSCorrSubset = mean(abs(r_k_abs),3); % corresponding subset of kICS ACF
+% kICSStdDev = std(abs(r_k_abs),0,3)/sqrt(nReps); % standard deviation of ACF (relevant if nReps > 1)
 
 if do_fit
-	err = @(params) kICSNormTauFitFluctNoise(params,kSqVectorSubset,tauVector,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
-	
+    err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
+        k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset);
 	tic
 	%
 	opts = optimoptions(@fmincon,'Algorithm','interior-point');
@@ -144,7 +209,9 @@ if do_fit
 	fitTime = toc; disp(['fitTime = ' num2str(fitTime)]); % time to fit
 end
 
-kSq2Plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result/theory curves
+%% plotting
+
+ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result/theory curves
 
 figure()
 hold on
@@ -155,36 +222,26 @@ h_sim_data = zeros(1,length(plotTauLags));
 % plot fit and/or theoy curves
 for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
     if do_fit
-        plot(kSq2Plot,kICSNormTauFitFluctNoise(opt_params,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
-            'Color',color(tauInd,:),'linewidth',1.4)
-    elseif do_theory
-        if k_p == 0
-            plot(kSq2Plot,kICSNormTauFitFluctNoise(true_params_mean,kSq2Plot,plotTauLags(tauInd),'normByLag',normByLag),...
-                '--','Color',color(tauInd,:),'linewidth',1.4)
-        else
-            plot(kSq2Plot,kICSNormTauFitFluctNoiseBleach(true_params_mean,kSq2Plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
-                '--','Color',color(tauInd,:),'linewidth',1.4)
-        end
+        plot(ksq2plot,timeIntkICSFit(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
+            'Color',color(tauInd,:)) % plot best fit kICS ACF
+    end
+    if do_theory
+        plot(ksq2plot,timeIntkICSFit(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
+            '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
     end
 end
 % plot simulation data
-if nReps == 1 
-    for tauInd = 1:length(plotTauLags) 
-		h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),'.','MarkerSize',16,'Color',color(tauInd,:));
-        plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
-    end
-else
-    for tauInd = 1:length(plotTauLags) 
-        h_sim_data(tauInd) = errorbar(kSqVectorSubset,kICSCorrSubset(:,plotTauLags(tauInd)+1),...
-            kICSStdDev(:,plotTauLags(tauInd)+1),'.','Color',color(tauInd,:),'MarkerSize',12);
-        plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$']; 
-    end    
+for tauInd = 1:length(plotTauLags)
+    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),...
+        '.','markersize',16,'Color',color(tauInd,:)); % plot simulated kICS ACF
+    plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
 end
+
 % labeling
 xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
 ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
 legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
-xlim([kSqMin kSqMax])
+xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
 ylims = get(gca,'ylim');
 ylim([0 ylims(2)])
 
