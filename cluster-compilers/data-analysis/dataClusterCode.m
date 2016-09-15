@@ -56,48 +56,33 @@ mkdir(analysisDir)
 
 %% fit intensity trace
 
-T = length(session_info.tRange);
-
-t = 1:T;
-I_t = squeeze(mean(mean(loadedMovie,1),2)); % mean intensity trace
-
-bleach_profile = @(x,t) x(1)*exp(-x(2)*t); % bleaching profile for single decay rate model
-                                           % x(1): amplitude
-                                           % x(2): bleach rate
-lb_bleach = [0,0]; % lower-bound of x
-ub_bleach = [Inf,1]; % upper-bound
-x0 = [1,rand()]; % initial guess
-
-x = lsqcurvefit(bleach_profile,x0,t',I_t,lb_bleach,ub_bleach) % LSF
-k_p_fit = x(2); % fit value for k_p
-
-figure()
-hold on
-
-plot(t',I_t)
-plot(t',bleach_profile(x,t))
-% labeling
-xlabel('$t$ (frames)','interpreter','latex','fontsize',14)
-ylabel('$\overline{i({\bf r},t)}_t$','interpreter','latex','fontsize',14)
-legend({'data','theory'},'fontsize',12,'interpreter','latex')
-
-tightfig(gcf) % no white-space (3rd party package; works for release 2015a)
+[p,ci,bleach_fig] = bleachFit(loadedMovie)
+k_p_fit = p(2); % fitted value for bleaching rate
 
 % save intensity trace with bleach profile fit
-filename = [analysisDir filesep runName '_intensity_trace.fig']; % save figure .fig
-saveas(gcf,filename)
-filename = [analysisDir filesep runName '_intensity_trace.pdf']; % save figure .pdf
-saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_intensity_trace.fig']; % save figure .fig
+saveas(bleach_fig,filename)
+filename = [runDir filesep 'analysis' filesep runName '_intensity_trace.pdf']; % save figure .pdf
+saveas(bleach_fig,filename)
+
+% store fit details in struct
+bleach_fit_info.opt_params = p;
+bleach_fit_info.ci = ci;
 
 %% fitting
 
 kSqMinIndex = find(kSqVector >= kSqMin,1,'first') % lowest index, i, which satisfies kSqVector(i) >= kSqMin
-kSqMaxIndex = find(kSqVector <= kSqMax,1,'last') % highest index, j, which satisfies kSqVector(j) <= kSqMax
+if strcmpi(kSqMax,'max') % highest index, j, which satisfies kSqVector(j) <= kSqMax
+    kSqMaxIndex = length(kSqVector); % use entire |k|^2 vector
+else
+    kSqMaxIndex = find(kSqVector <= kSqMax,1,'last') 
+end
 kSqVectorSubset = kSqVector(kSqMinIndex:kSqMaxIndex); % all values satisfying kSqMin <= kSqVector <= kSqMax
 kSqSubsetInd = kSqMinIndex:kSqMaxIndex; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
 
 kICSCorrSubset = r_k_abs(kSqSubsetInd,:); % corresponding subset of kICS ACF
 
+T = length(session_info.tRange);
 err = @(params) kICSNormTauFitFluctNoiseBleach(params,kSqVectorSubset,tauVector,...
     k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
 
@@ -116,13 +101,10 @@ if parallel
     % "opt_params" are the parameters yielding lowest value in
     % objective function, "err_min"
     if output_mins
-        [opt_params,err_min,~,~,manymins] = run(ms,problem,startPts);
+        [opt_params,err_min,~,~,kics_manymins] = run(ms,problem,startPts);
     else
         [opt_params,err_min] = run(ms,problem,startPts);
     end
-    disp(['optimal parameters: ',num2str(opt_params)])
-    disp(['minimum objective function: ',num2str(err_min)])
-%     disp(['true parameters: ',num2str(sim_info.true_params)])
 
     delete(gcp) % delete parallel pool object
 else
@@ -133,6 +115,25 @@ else
     [opt_params,err_min] = run(gs,problem);
 end
 fitTime = toc; disp(['fitTime = ' num2str(fitTime)]);
+
+disp(['optimal parameters: ',num2str(opt_params)])
+disp(['minimum objective function: ',num2str(err_min)])
+%     disp(['true parameters: ',num2str(sim_info.true_params)])
+
+% get confidence intervals
+x0 = opt_params; % set initial guess to best global fit to get immediate
+                 % convergence and correct Hessian from "fminunc.m"
+
+[x,~,~,~,~,hessian] = fminunc(err,x0);
+disp(['params from "fminunc.m":',num2str(x)])
+disp('variance on fit parameters:')
+disp(num2str(inv(hessian)))
+%
+
+% store fit details in struct
+kics_fit_info.opt_params = opt_params;
+kics_fit_info.err_min = err_min;
+kics_fit_info.hessian = hessian;
 
 %% plot kICS data
 
@@ -178,10 +179,10 @@ saveas(gcf,filename)
 filename = [analysisDir filesep runName '.pdf']; % save figure .pdf
 saveas(gcf,filename)
 
+% save fit details
 filename = [analysisDir filesep 'fit_info.mat'];
-
 if output_mins
-    save(filename,'opt_params','k_p_fit','err_min','manymins','-v7.3');
+    save(filename,'bleach_fit_info','kics_fit_info','kics_manymins','-v7.3');
 else
-    save(filename,'opt_params','k_p_fit','err_min');
+    save(filename,'bleach_fit_info','kics_fit_info');
 end

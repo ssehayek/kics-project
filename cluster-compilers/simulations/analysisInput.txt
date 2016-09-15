@@ -1,7 +1,7 @@
 ############### RUN TYPE ############### (change in preSubScript)
 
 1 | createSim
-1 | fitSim
+0 | fitSim
 
 [] | loadRep
 
@@ -11,9 +11,9 @@
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main' | baseDir
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/SimulationData' | saveSimDir
 
-'manymins' | runTag
-'high-noise' | runClass
-'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/job_5' | runDir
+'create-par' | runTag
+'time-int-effect' | runClass
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/job_1' | runDir
 
 ######### SIMULATION VARIABLES #########
 
@@ -23,19 +23,19 @@
 50 | n_sub_frames
 1 | w0
 500 | N_diff
-1 | D
-0.4 | k_on
-0.5 | k_off
-0 | k_p
+0.1 | D
+0.5 | k_on
+0.375 | k_off
+0.001 | k_p
 
 ## AGGREGATE PARAMS
-0 | prob_agg
+0.5 | prob_agg
 5 | mean_agg_num
 0.1 | std_agg_dist
 
 ## FILAMENT PARAMS
-0 | num_filaments
-0.3 | prob_place
+20 | num_filaments
+0.5 | prob_place
 
 ## VARARGIN
 2 | snr
@@ -73,7 +73,7 @@ xi_lags | eta_lags
 # parallel boolean
 1 | parallel
 # if parallel is true, choose number of start points to try
-10^5 | startPts
+10^4 | startPts
 # point tolerance
 0 | tolX
 # objective function tolerance
@@ -85,7 +85,7 @@ xi_lags | eta_lags
 0 | normByLag
 
 # lags to fit (actual tau values)
-[1:5] | tauVector
+[1:10] | tauVector
 0.01 | kSqMin
 # put 'max' to fit entire range
 'max' | kSqMax

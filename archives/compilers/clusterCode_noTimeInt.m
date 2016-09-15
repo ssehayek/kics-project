@@ -1,15 +1,13 @@
 %% preliminary code
 
-% reseed the random number generator; otherwise same random
+rng shuffle % reseed the random number generator; otherwise same random
 % numbers are generated each time MATLAB restarts
-rng shuffle
 
 run('getAnalysisInput') % gets all parameters from "analysisInput.txt.mv"
 
 addpath(genpath(codePath))
-% cd to main project folder (this is "BASEDIR"
+cd(['..',filesep,'..']) % cd to main project folder (this is "BASEDIR"
 % in preSubScript)
-cd(['..',filesep,'..']) 
 
 % organization for simulations
 
@@ -54,14 +52,14 @@ if createSim
     end
     % if simulation with these params already exists, create
     % another one
-    [simfilepath_abs,num_rep] = iterateFilename(simfilepath_abs);
+    [simfilepath_abs,num_rep] = iterateFilename(simfilepath_abs); 
     disp(['creating simulation repetition: ',num2str(num_rep),'.'])
 elseif ~createSim && ~fitSim % exits if no routine is chosen
-    disp('"createSim" and "fitSim" cannot both be 0.'); 
+    disp('"createSim" and "fitSim" cannot both be 0.');
     exit
 elseif ~createSim && fitSim && ~exist(simfilepath_abs,'file') % exit if simulations don't exist and createSim=0
-    disp('Simulations do not exist for these parameters. Please change value of createSim to create this simulation.'); 
-    exit 
+    disp('Simulations do not exist for these parameters. Please change value of createSim to create this simulation.');
+    exit
 end
 
 % organization for run folder
@@ -76,12 +74,12 @@ if isempty(runTag) == 0 % append rep number to end of "runName"
     new_runName = [runName,'--',runTag,'--rep-',num2str(num_rep)];  % new run name (with tag)
 else
     new_runName = [runName,'--rep-',num2str(num_rep)]; % new run name (no tag)
-end 
+end
 new_runDir = [baseDir,filesep,'queued-jobs',filesep,new_runName]; % append rep number to end of "runDir"
 movefile(runDir,new_runDir) % rename queued job folder to "new_runDir" (within "queued-jobs" folder)
 
-% redefine variables 
-runDir = new_runDir; 
+% redefine variables
+runDir = new_runDir;
 runName = new_runName;
 
 if isempty(runClass) == 0
@@ -109,7 +107,7 @@ runDir = pwd; % replace runDir definition
 %% create simulations
 
 if createSim
-    [J,sim_info] = dronpaSimParallel(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
+    [J,sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
         prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,...
         'snr',snr,'subFrames',n_sub_frames); % create simulation
     
@@ -117,20 +115,10 @@ if createSim
 elseif fitSim && ~createSim % if file wasn't created, load it
     load(simfilepath_abs)
 end
-% corrections to true parameters when fitting for mean on fraction, k_on/K,
-% and sum of rates, K=k_on+k_off
-K = sim_info.k_on + sim_info.k_off;
-
-sim_info.eta_p = sim_info.eta_p*sim_info.k_on/K;
-
-sim_info.true_params(2) = sim_info.k_on/K;
-sim_info.true_params(3) = K;
-sim_info.true_params(6) = sim_info.eta_p;
-%
-
-%% fit intensity trace
 
 mkdir('analysis')
+
+%% fit intensity trace
 
 [p,ci,bleach_fig] = bleachFit(J)
 k_p_fit = p(2); % fitted value for bleaching rate
@@ -140,13 +128,12 @@ filename = [runDir filesep 'analysis' filesep runName '_intensity_trace.fig']; %
 saveas(bleach_fig,filename)
 filename = [runDir filesep 'analysis' filesep runName '_intensity_trace.pdf']; % save figure .pdf
 saveas(bleach_fig,filename)
-close(gcf)
 
 % store fit details in struct
 bleach_fit_info.opt_params = p;
 bleach_fit_info.ci = ci;
 
-%% compute kICS autocorr
+%% run kICS
 
 kSqVector = getKSqVector(J);
 [kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMin',kSqMin,'kSqMax',kSqMax);
@@ -154,26 +141,17 @@ kSqVector = getKSqVector(J);
 r_k_circ_uncut = zeros(length(kSqVector),length(tauVector));
 r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
 
-%
-tic
-
 r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)]),'normByLag',normByLag); % kICS autocorrelation function (ACF)
 if do_interp
     n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
-    
-    r_k_tau = r_k_norm(:,:,tauVector+1);
-    parfor tau_i = 1:length(tauVector)
-        r_k_circ(:,tau_i) = ellipticInterp(r_k_tau(:,:,tau_i),kSqVectorSubset,n_theta_arr);
+    for tau_i = 1:length(tauVector)
+        r_k_circ(:,tau_i) = ellipticInterp(r_k_norm(:,:,tauVector(tau_i)+1),kSqVectorSubset,n_theta_arr);
     end
-    delete(gcp)
 else
     r_k_circ_uncut = circular(r_k_norm(:,:,tauVector+1));
     r_k_circ = r_k_circ_uncut(kSqSubsetInd,:);
 end
 r_k_abs = abs(r_k_circ); % get rid of complex values
-
-toc
-%
 
 % if any(strcmpi(normByLag,{'none','noNorm',''})) % some normalization for when the kICS AC is not normalized, otherwise the fit is unreasonable
 %     max_value = max(max(r_k_abs));
@@ -184,54 +162,13 @@ cd(runDir)
 filename = [runDir filesep 'analysis' filesep 'kICS_Data.mat'];
 save(filename,'kSqVector','r_k_abs','r_k_norm'); % save computed kICS ACF
 
-%% ICS for guesses
-
-if use_ics_guess && fitSim
-    ics_figpath = [runDir filesep 'analysis' filesep 'ics_figs'];
-    ics_run = ICSCompiler(J,xi_lags,eta_lags,'subsets',n_ics_subs,...
-        'saveFigs',ics_figpath);
-    
-    % save ICS info
-    filename = [runDir filesep 'analysis' filesep 'ics_info.mat'];
-    save(filename,'ics_run')
-    
-    % compute tau = 0 lag in kICS
-    n_theta_arr = n_theta*ones(1,length(kSqVector));
-    
-    r_k_tau_0 = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)]),'normByLag','none'); % kICS autocorrelation unnormalized
-    r_k_circ_0 = ellipticInterp(r_k_tau_0(:,:,1),kSqVector,n_theta_arr);
-    %
-    
-    % get param guesses for kICS fitting
-    kics_figpath = [runDir filesep 'analysis'];
-    [params_guess,lb,ub] = getkICSGuess(J,ics_run,p,kSqVector,r_k_circ_0,...
-        ksq_noise_lb,'saveFigs',kics_figpath);
-    %
-    
-    % save kICS guesses
-    filename = [runDir filesep 'analysis' filesep 'kics_guesses.mat'];
-    save(filename,'params_guess','lb','ub')
-    %
-    
-    % check if guesses concur with true params
-    param_names = {'diffusion','r','K','f_d','w0','eta_p'};
-    for ii = 1:length(params_guess)
-        if sim_info.true_params(ii) < lb(ii) || sim_info.true_params(ii) > ub(ii)
-            warning(['True simulation param is not within guessed bounds',...
-                ' for param: ''',param_names{ii},'''.'])
-        end
-    end
-    %
-end
-
-%% kICS fitting
+%% fitting
 
 kICSCorrSubset = mean(abs(r_k_abs),3); % corresponding subset of kICS ACF
 
 if fitSim
-    % function handle of LSF error
-    err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
-        k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset);
+    err = @(params) kICSNormTauFitFluctNoiseBleach(params,kSqVectorSubset,tauVector,...
+        k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
     
     tic
     if parallel
@@ -240,7 +177,7 @@ if fitSim
         opts = optimoptions(@fmincon,'Algorithm','interior-point');
         problem = createOptimProblem('fmincon','objective',...
             err,'x0',params_guess,'lb',lb,'ub',ub,'options',opts);
-        ms = MultiStart('UseParallel',true,'Display','final'); 
+        ms = MultiStart('UseParallel',true,'Display','final');
         ms.TolX = tolX; ms.TolFun = tolFun;
         
         % scatter "startPts" many points (parallel) in parameter space and
@@ -269,7 +206,7 @@ if fitSim
     % get confidence intervals
     % set initial guess to best global fit to get immediate
     % convergence and correct Hessian from "fminunc.m"
-    x0 = opt_params;
+    x0 = opt_params; 
     
     [x,~,~,~,~,hessian] = fminunc(err,x0);
     disp(['params from "fminunc.m":',num2str(x)])
@@ -306,7 +243,7 @@ legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
 xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
 ylims = get(gca,'ylim');
 ylim([0 ylims(2)])
-tightfig(gcf) 
+tightfig(gcf)
 
 % save plots without fits
 filename = [runDir filesep 'analysis' filesep runName '_nofit.fig']; % save figure .fig
@@ -318,15 +255,15 @@ saveas(gcf,filename)
 
 h_theory = zeros(1,length(plotTauLags));
 for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    h_theory(tauInd) = plot(ksq2plot,timeIntkICSFit(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
+    h_theory(tauInd) = plot(ksq2plot,kICSNormTauFitFluctNoiseBleach(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
         '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
 end
 tightfig(gcf)
 
 % save plots with theory curves superimposed
-filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.fig']; % save figure .fig
+filename = [runDir filesep 'analysis' filesep runName '_theory_bleach.fig']; % save figure .fig
 saveas(gcf,filename)
-filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.pdf']; % save figure .pdf
+filename = [runDir filesep 'analysis' filesep runName '_theory_bleach.pdf']; % save figure .pdf
 saveas(gcf,filename)
 
 %% plot best fit curves
@@ -335,7 +272,7 @@ if fitSim
     delete(h_theory) % delete theory curve handles
     
     for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        plot(ksq2plot,timeIntkICSFit(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
+        plot(ksq2plot,kICSNormTauFitFluctNoiseBleach(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
             'Color',color(tauInd,:)) % plot best fit kICS ACF
     end
     tightfig(gcf)
@@ -345,12 +282,12 @@ if fitSim
     saveas(gcf,filename)
     filename = [runDir filesep 'analysis' filesep runName '.pdf']; % save figure .pdf
     saveas(gcf,filename)
-    close(gcf)
     
     % save fit details
     filename = [runDir filesep 'analysis' filesep 'fit_info.mat'];
-    save(filename,'bleach_fit_info','kics_fit_info');
     if output_mins
-        save(filename,'kics_manymins','-append');
+        save(filename,'bleach_fit_info','kics_fit_info','kics_manymins','-v7.3');
+    else
+        save(filename,'bleach_fit_info','kics_fit_info');
     end
 end
