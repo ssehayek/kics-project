@@ -45,17 +45,13 @@ fluct_imgser = imgser - mean_imgser;
 % treat even & odd cases separately
 if ~mod(size_x,2)
     xlags = -size_x/2:(size_x/2-1);
-    ctr_x = size_x/2 + 1;
 else
     xlags = -(size_x-1)/2:(size_x-1)/2;
-    ctr_x = (size_x+1)/2;
 end
 if ~mod(size_y,2)
     ylags = -size_y/2:(size_y/2-1);
-    ctr_y = size_y/2 + 1;
 else
     ylags = -(size_y-1)/2:(size_y-1)/2;
-    ctr_y = (size_y+1)/2;
 end
 [xi,eta] = meshgrid(xlags,ylags);
 
