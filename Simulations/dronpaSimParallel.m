@@ -3,7 +3,7 @@
 % or remain fixed in filamentous structures. Immobile particles found on
 % these filaments are also allowed to form aggregates. Additionally, all
 % particles are assumed to possess the same blinking/bleaching
-% distributions. 
+% distributions.
 %
 % The filaments are created by drawing angles from a narrow Gaussian
 % distribution. Particles are then subsequently placed along the filaments
@@ -49,11 +49,11 @@
 %   'subFrames' | value: [1,Inf) (default 1 i.e. no integration time)
 % FUTURE IMPROVEMENTS
 % - Dronpa has odd blinking behaviour, which does not follow the standard
-%   two-state model (see http://www.pnas.org/content/102/27/9511.full). 
+%   two-state model (see http://www.pnas.org/content/102/27/9511.full).
 % - PSF should have stochastic size
 % - Laser power should affect blinking on rate
 %
-function [J,sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
+function [J,sim_info] = dronpaSimParallel(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
     prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,varargin)
 
 % num_filaments = 20;
@@ -65,10 +65,10 @@ sub_frames = 1;
 for i = 1:length(varargin)
     if any(strcmpi(varargin{i},{'simulatePhotophysics','photoSimulate','photoSim','simPhoto'})) && (varargin{i+1} == 0 || varargin{i+1} == 1)
         simulatePhotophysics = varargin{i+1};
-    elseif any(strcmpi(varargin{i},{'addNoise','noise','whiteNoise','snr'})) && isnumeric(varargin{i+1})  % add noise with varargin{i+1}=SNR 
+    elseif any(strcmpi(varargin{i},{'addNoise','noise','whiteNoise','snr'})) && isnumeric(varargin{i+1})  % add noise with varargin{i+1}=SNR
         if isnumeric(varargin{i+1}) && varargin{i+1} > 0
             addNoise = 1;
-            snr = varargin{i+1};    
+            snr = varargin{i+1};
         elseif any(strcmpi(varargin{i+1},{'noNoise','noiseless','none'}))
             addNoise = 0;
         else
@@ -146,8 +146,8 @@ if simulatePhotophysics
     particles.immobile.obsState(find(particles.immobile.photoState == 1),1) = 1;
     
     % aggregates
-%     agg_photo_state = [];
-%     agg_obs_state = [];
+    %     agg_photo_state = [];
+    %     agg_obs_state = [];
     for n = 1:N_imm
         if particles.immobile.aggState(n) ~= 0
             agg_num = size(particles.immobile.aggregate.position{n},1); % find number of aggregates for nth particle
@@ -157,11 +157,11 @@ if simulatePhotophysics
                 particles.immobile.aggregate.obsState{n} = zeros(agg_num,total_T);
                 particles.immobile.aggregate.obsState{n}(find(particles.immobile.aggregate.photoState{n}(:,1) == 1),1) = 1; % set "on" particles to have observed state of 1
                 
-%                 add_photo_state = particles.immobile.aggregate.photoState{n}(:,1); % for simplicity
-%                 agg_photo_state = cat(1,agg_photo_state,add_photo_state);
-%                 
-%                 add_obs_state = particles.immobile.aggregate.obsState{n}(:,1); % for simplicity
-%                 agg_obs_state = cat(1,agg_obs_state,add_obs_state);
+                %                 add_photo_state = particles.immobile.aggregate.photoState{n}(:,1); % for simplicity
+                %                 agg_photo_state = cat(1,agg_photo_state,add_photo_state);
+                %
+                %                 add_obs_state = particles.immobile.aggregate.obsState{n}(:,1); % for simplicity
+                %                 agg_obs_state = cat(1,agg_obs_state,add_obs_state);
             end
         end
     end
@@ -319,7 +319,7 @@ else
     positions = cat(1,repmat(particles.immobile.position,[1,1,total_T]),particles.diffusing.position); % positions of all particles WHICH ARE NOT AGGREGATED
     observed_state = cat(1,particles.immobile.obsState,particles.diffusing.obsState); % observed states of all particles WHICH ARE NOT AGGREGATED
 end
-    
+
 J = zeros(sz,sz,T);
 
 kernelSize = ceil(3*w0); % makes Gaussian kernel with radius 3*PSFsize
@@ -336,10 +336,14 @@ for t = 1:total_T
     if mod(t-1,sub_frames) == 0
         frame = frame + 1;
     end
-    for i = 1:N
+    
+    pos_x_t = positions(:,1,t);
+    pos_y_t = positions(:,2,t);
+    J_t = zeros(sz);
+    parfor i = 1:N
         if observed_state(i,t) ~= 0
-            dx = -round(positions(i,1,t))+positions(i,1,t); % dx shift from pixel center
-            dy = -round(positions(i,2,t))+positions(i,2,t); % dy shift from pixel center
+            dx = -round(pos_x_t(i))+pos_x_t(i); % dx shift from pixel center
+            dy = -round(pos_y_t(i))+pos_y_t(i); % dy shift from pixel center
             
             arg =  -2*((x-dx).*(x-dx) + (y-dy).*(y-dy))/(w0^2);
             
@@ -352,18 +356,19 @@ for t = 1:total_T
             %     end
             nonZeroEl = find(kernel);
             % find kernel index on image
-            xcoor = mod(x(nonZeroEl) + round(positions(i,1,t)),sz);
-            ycoor = mod(y(nonZeroEl) + round(positions(i,2,t)),sz);
+            xcoor = mod(x(nonZeroEl) + round(pos_x_t(i)),sz);
+            ycoor = mod(y(nonZeroEl) + round(pos_y_t(i)),sz);
             % fix MATLAB index of 1
             xcoor(xcoor==0) = sz;
             ycoor(ycoor==0) = sz;
             % make image
             imgKernel = full(sparse(ycoor,xcoor,kernel(nonZeroEl),sz,sz));
             % add particle signal to image series
-            J(:,:,frame) = J(:,:,frame) + sub_time*observed_state(i,t)*imgKernel;
+            J_t = J_t + sub_time*observed_state(i,t)*imgKernel;
         end
     end
-    if mod(t,1000) == 0
+    J(:,:,frame) = J(:,:,frame) + J_t;
+    if mod(t,1000) == 0 
         disp(['progress: ',num2str(t),'/',num2str(total_T),' after ',num2str(toc),' s.'])
     end
 end
@@ -374,7 +379,7 @@ toc
 if addNoise
     for t = 1:T
         sp_mean_t = mean(mean(J(:,:,t),1),2); % spatial mean of image series at time t
-        wgn_t = sp_mean_t/snr*randn(sz); % white Gaussian noise 
+        wgn_t = sp_mean_t/snr*randn(sz); % white Gaussian noise
         J(:,:,t) = J(:,:,t) + wgn_t; % add noise to image at time t
     end
 end
