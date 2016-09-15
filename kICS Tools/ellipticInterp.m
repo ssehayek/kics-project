@@ -14,7 +14,7 @@
 %
 % n_theta: number of theta points to sample for each value of |k| in the
 % interval (0,2*pi]. "n_theta" has same dimensions as "ksq_vec"
-function [B] = ellipticInterp(A,ksq_vec,n_theta,varargin)
+function [B_mean,B] = ellipticInterp(A,ksq_vec,n_theta,varargin)
 
 [ydim,xdim]=size(A); % note inverted order definition of x and y
 
@@ -39,6 +39,7 @@ cFx=conj(Fx);
 %
 
 B=cell(1,length(ksq_vec));
+B_mean = zeros(1,length(ksq_vec));
 for i0=1:length(ksq_vec)
     kmag=sqrt(ksq_vec(i0));
     
@@ -68,6 +69,13 @@ for i0=1:length(ksq_vec)
         end
         %
     end
-    x(isnan(x)) = [];
-    B{i0}=x;
+    if any(isnan(x))
+        x(isnan(x)) = [];
+    elseif all(isnan(x))
+        B_mean(i0:end) = [];
+        break
+    end
+    B{i0} = x;
+    
+    B_mean(i0) = mean(x);
 end

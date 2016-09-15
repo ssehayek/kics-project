@@ -2,9 +2,23 @@ function [ksq_sub,iksq_sub] = getKSqVector(r_k,varargin)
 
 for i = 1:length(varargin)
     if strcmpi(varargin{i},{'kSqMin'})
-        ksq_min = varargin{i+1};
+        if isnumeric(varargin{i+1})
+            ksq_min = varargin{i+1};
+        elseif strcmpi(varargin{i+1},'min')
+            % do nothing; min set by default
+        else
+            warning(['Unknown option for ''',varargin{i},...
+                ''', using default options.'])
+        end
     elseif strcmpi(varargin{i},{'kSqMax'})
-        ksq_max = varargin{i+1};
+        if isnumeric(varargin{i+1})
+            ksq_max = varargin{i+1};
+        elseif strcmpi(varargin{i+1},'max')
+            % do nothing; max set by default
+        else
+            warning(['Unknown option for '' ',varargin{i},...
+                ''', using default options.'])
+        end
     end
 end
 
@@ -35,7 +49,7 @@ lattice_sqrd = (X/size_x).^2 + (Y/size_y).^2; % norm squared of lattice
 lattice_nums = unique(lattice_sqrd); 
 
 ksq = (2*pi)^2*lattice_nums; % unique |k|^2 values sorted into vector
-    
+
 % lowest index, i, which satisfies kSqVector(i) >= kSqMin
 if exist('ksq_min','var')
     iksq_min = find(ksq >= ksq_min,1,'first');
