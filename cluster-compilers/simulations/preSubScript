@@ -36,15 +36,13 @@ do
 	
 	LOADREP=${LOADREP_ARR[$i]}
 
-	NEWDIR="${BASEDIR}/queued-jobs/job" # job temp directory
+	NEWDIR="${BASEDIR}/queued-jobs/" # job temp directory
 
-	N=1;
-	while [[ -d "${NEWDIR}_${N}" ]]
-	do
-		N=$[$N+1]
-	done
-	NEWDIR="${NEWDIR}_${N}"
 
+	# unique job names
+	UUID=$(uuidgen)
+	NEWDIR="${NEWDIR}${UUID}"
+			
 	mkdir -p "${NEWDIR}"
 
 	cd "${BASEDIR}"
@@ -79,12 +77,12 @@ do
 	mv analysisInput.txt.mv "${NEWDIR}"
 
 	cp submitMatlabJob{,.mv}
-	mv submitMatlabJob.mv "$NEWDIR"
+	mv submitMatlabJob.mv "${NEWDIR}"
 	
 	if [[ "$Q_TYPE" == "condor" ]]
 	then 
 		cp condor_script{,.mv}
-		mv condor_script.mv "$NEWDIR"		
+		mv condor_script.mv "${NEWDIR}"		
 	fi
 
 	cd "${NEWDIR}"

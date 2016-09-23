@@ -31,18 +31,21 @@ std_agg_dist = 0.1;
 
 % filament params 
 num_filaments = 20; 
-prob_place = 0.3; 
+prob_place = 0.5; 
 
 % varargin
-snr = 8; % signal-to-noise ratio (enter 'none' for no noise)
+snr = 2; % signal-to-noise ratio (enter 'none' for no noise)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%% ICS Options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%% relevant only if do_fit=1 %%%
 use_ics_guess = 1;
-%%% relevant only if value is 1 %%%
+%%%
 
+%%% relevant only if value is 1 %%%
+%
 % split data into 'n_ics_subs' many subsets  
 n_ics_subs = 10;
 % spatial lags to fit in ICS
@@ -68,7 +71,6 @@ n_theta = 1000;
 %%%%%% kICS Fitting %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 do_fit = 0; % run fit algorithm
-do_theory = 1; % superimpose theory curves on simulation curves
 
 normByLag = 0; % actual lag values i.e. tau=0 is 0th lag
 
@@ -160,7 +162,7 @@ toc
 
 %% ICS for guesses
 
-if use_ics_guess
+if use_ics_guess && do_fit
     ics_run = ICSCompiler(J,xi_lags,eta_lags,'subsets',n_ics_subs,...
         'showfigs');
     
@@ -213,36 +215,61 @@ end
 
 ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit function result/theory curves
 
-figure()
-hold on
+n_figs = do_fit + 2; % number of figures
+h = zeros(1,n_figs); % array of fig handles
+for ii = 1:n_figs; % create fig handles
+    h(ii) = figure(ii);
+    hold on
+end
 
+% plot simulation data
 color = lines(length(plotTauLags)); 
 plotLegend = cell(1,length(plotTauLags));
-h_sim_data = zeros(1,length(plotTauLags));
-% plot fit and/or theoy curves
+h_sim_data = cell(1,n_figs);
+
+for h_i = 1:n_figs
+    set(0,'CurrentFigure',h(h_i))
+    h_sim_data{h_i} = zeros(1,length(plotTauLags));
+    for tauInd = 1:length(plotTauLags)
+        h_sim_data{h_i}(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),...
+            '.','markersize',16,'Color',color(tauInd,:)); % plot simulated kICS ACF
+        plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
+    end
+    % labeling
+    xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
+    ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
+    legend(h_sim_data{h_i},plotLegend,'fontsize',12,'interpreter','latex')
+    xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
+    ylims = get(gca,'ylim');
+    ylim([0 ylims(2)])
+end
+%
+
+% plot theory (and fit) curves
+%
+% theory (with time-int)
+set(0,'CurrentFigure',h(1))
 for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    if do_fit
-        plot(ksq2plot,timeIntkICSFit(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
-            'Color',color(tauInd,:)) % plot best fit kICS ACF
-    end
-    if do_theory
-        plot(ksq2plot,timeIntkICSFit(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
-            '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
-    end
+    plot(ksq2plot,timeIntkICSFit(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
+        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
 end
-% plot simulation data
+title('compare with theory (time-int)','interpreter','latex')
+%
+% theory (no time-int)
+set(0,'CurrentFigure',h(2))
 for tauInd = 1:length(plotTauLags)
-    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),...
-        '.','markersize',16,'Color',color(tauInd,:)); % plot simulated kICS ACF
-    plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
+    plot(ksq2plot,kICSNormTauFitFluctNoiseBleachBlinkFrac(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
+        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
 end
-
-% labeling
-xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
-ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
-legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
-xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
-ylims = get(gca,'ylim');
-ylim([0 ylims(2)])
-
+title('compare with theory (no time-int)','interpreter','latex')
+%
+% best fit 
+if do_fit
+    for tauInd = 1:length(plotTauLags) 
+        plot(ksq2plot,timeIntkICSFit(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
+            'Color',color(tauInd,:)) % plot best fit kICS ACF    
+    end
+    title('best fit','interpreter','latex')
+end
+%
 tightfig(gcf)

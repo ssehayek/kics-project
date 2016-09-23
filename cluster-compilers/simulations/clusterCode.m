@@ -35,8 +35,13 @@ paramStr1 = strcat('D_',num2str(D),'_k_on_',num2str(k_on),...
 paramStr2 = strcat('prob_agg_',num2str(prob_agg),'_mean_agg_num_',...
     num2str(mean_agg_num),'_std_agg_dist_',num2str(std_agg_dist)); % properties of aggregates string
 paramStr3 = strcat('num_fils_',num2str(num_filaments),'_prob_place_',num2str(prob_place)); % properties of filaments string
-paramStr4 = strcat('N_diff_',num2str(N_diff),'_w0_',num2str(w0),'_sz_',num2str(sz),'_T_',...
-    num2str(T),'_nsub_',num2str(n_sub_frames),'_SNR_',num2str(snr)); % intrinsic/extrinsic properties of experiment string (filename)
+if n_sub_frames ~= 1
+    paramStr4 = strcat('N_diff_',num2str(N_diff),'_w0_',num2str(w0),'_sz_',num2str(sz),'_T_',...
+        num2str(T),'_nsub_',num2str(n_sub_frames),'_SNR_',num2str(snr)); % intrinsic/extrinsic properties of experiment string (filename)
+else
+    paramStr4 = strcat('N_diff_',num2str(N_diff),'_w0_',num2str(w0),'_sz_',num2str(sz),'_T_',...
+        num2str(T),'_SNR_',num2str(snr));
+end
 %
 
 simfilepath_rel = [paramStr1,filesep,paramStr2,filesep,paramStr3,filesep,paramStr4]; % relative path to simulation file
@@ -316,18 +321,38 @@ saveas(gcf,filename)
 
 %% plot theoretical curves
 
+% time-int theory
+%
 h_theory = zeros(1,length(plotTauLags));
 for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
     h_theory(tauInd) = plot(ksq2plot,timeIntkICSFit(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
         '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
 end
 tightfig(gcf)
-
+%
 % save plots with theory curves superimposed
 filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.fig']; % save figure .fig
 saveas(gcf,filename)
 filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.pdf']; % save figure .pdf
 saveas(gcf,filename)
+%
+
+% no time-int theory
+%
+delete(h_theory)
+for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
+    h_theory(tauInd) = plot(ksq2plot,...
+        kICSNormTauFitFluctNoiseBleachBlinkFrac(sim_info.true_params,...
+        ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
+        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
+end
+tightfig(gcf)
+% save plots with theory curves superimposed
+filename = [runDir filesep 'analysis' filesep runName '_theory_no_time_int.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_theory_no_time_int.pdf']; % save figure .pdf
+saveas(gcf,filename)
+%
 
 %% plot best fit curves
 

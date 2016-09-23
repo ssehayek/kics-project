@@ -42,6 +42,8 @@
 
 ############## ICS COMPUTATION ############### 
 
+### relevant only if fitting ###
+
 0 | use_ics_guess
 
 ### relevant only if value is 1 ###

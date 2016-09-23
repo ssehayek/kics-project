@@ -31,7 +31,7 @@ x0 = rand()*[1000,1]; % initial guess
 ci = nlparci(p,resid,'jacobian',jacobian,'alpha',alpha);
 
 % plotting
-if show_fig
+if show_fig || nargout > 2
     figure()
     hold on
     
