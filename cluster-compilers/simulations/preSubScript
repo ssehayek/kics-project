@@ -36,12 +36,11 @@ do
 	
 	LOADREP=${LOADREP_ARR[$i]}
 
-	NEWDIR="${BASEDIR}/queued-jobs/" # job temp directory
-
-
-	# unique job names
+	# unique job names (temp directory)
+	NEWDIR="${BASEDIR}/queued-jobs/" 
 	UUID=$(uuidgen)
 	NEWDIR="${NEWDIR}${UUID}"
+	#
 			
 	mkdir -p "${NEWDIR}"
 

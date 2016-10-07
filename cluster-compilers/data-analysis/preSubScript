@@ -21,15 +21,12 @@ LOADPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analys
 #rm QSub*
 #rm Execute*
 #rm program_output.txt
-
-NEWDIR="${BASEDIR}/queued-jobs/job" # job temp directory
-
-N=1;
-while [[ -d "${NEWDIR}_${N}" ]]
-do
-	N=$[$N+1]
-done
-NEWDIR="${NEWDIR}_${N}"
+	
+# unique job names (temp directory)
+NEWDIR="${BASEDIR}/queued-jobs/"
+UUID=$(uuidgen)
+NEWDIR="${NEWDIR}${UUID}"
+#
 
 mkdir -p "${NEWDIR}"
 
