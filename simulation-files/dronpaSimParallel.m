@@ -59,12 +59,12 @@ function [J,sim_info] = dronpaSimParallel(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
 % num_filaments = 20;
 % prob_place = 0.3;
 % std_agg_dist = 1/10; % default standard deviation of aggregates' distance from initially placed particle
-simulatePhotophysics = 1;
+doSimulatePhotophysics = 1;
 addNoise = 0;
 sub_frames = 1;
 for i = 1:length(varargin)
-    if any(strcmpi(varargin{i},{'simulatePhotophysics','photoSimulate','photoSim','simPhoto'})) && (varargin{i+1} == 0 || varargin{i+1} == 1)
-        simulatePhotophysics = varargin{i+1};
+    if any(strcmpi(varargin{i},{'doSimulatePhotophysics','simulatePhotophysics','photoSimulate','photoSim','simPhoto'})) && (varargin{i+1} == 0 || varargin{i+1} == 1)
+        doSimulatePhotophysics = varargin{i+1};
     elseif any(strcmpi(varargin{i},{'addNoise','noise','whiteNoise','snr'})) && isnumeric(varargin{i+1})  % add noise with varargin{i+1}=SNR
         if isnumeric(varargin{i+1}) && varargin{i+1} > 0
             addNoise = 1;
@@ -78,8 +78,6 @@ for i = 1:length(varargin)
         sub_frames = varargin{i+1};
     end
 end
-
-addpath(genpath('C:\Users\SimonS\Dropbox (Personal)\Research\PhD\SOFI-Project'));
 
 % total number of frames (including sub frames)
 total_T = sub_frames*T;
@@ -125,179 +123,44 @@ for n = 1:N_imm
     end
 end
 N_agg = size(agg_pos,1); % number of particles in aggregated state (not including initial aggregate)
-N = N_imm + N_diff + N_agg; % total number of particles
+N_stat = N_imm + N_agg; % number of static particles (including aggregates)
+N = N_imm + N_agg + N_diff; % total number of particles
 
-%% photo-state initialization
+%% photophysics
 
-if simulatePhotophysics
-    % photo-states. 1:on, 2:off, 3:bleached
-    % observed states. 0:off, 1:on
-    
-    K = k_on + k_off;
+if doSimulatePhotophysics
+    disp('simulating photophysics')
+    tic
     
     % diffusing particles
-    particles.diffusing.photoState = 3*ones(N_diff,total_T);
-    particles.diffusing.photoState(:,1) = 1 + binornd(1,k_off/K,[N_diff,1]);
-    particles.diffusing.obsState(find(particles.diffusing.photoState == 1),1) = 1;
+    [particles.diffusing.photoState,particles.diffusing.obsState] = ...
+        simulatePhotophysics(N_diff,total_T,sub_time,k_on,k_off,k_p);
     
     % immobile particles
-    particles.immobile.photoState = 3*ones(N_imm,total_T);
-    particles.immobile.photoState(:,1) = 1 + binornd(1,k_off/K,[N_imm,1]);
-    particles.immobile.obsState(find(particles.immobile.photoState == 1),1) = 1;
+    [particles.immobile.photoState,particles.immobile.obsState] = ...
+        simulatePhotophysics(N_imm,total_T,sub_time,k_on,k_off,k_p);
     
     % aggregates
-    %     agg_photo_state = [];
-    %     agg_obs_state = [];
+    [agg_photo_state,agg_obs_state] = ...
+        simulatePhotophysics(N_agg,total_T,sub_time,k_on,k_off,k_p);
+    cum_agg = 0; % cumulative number of aggregates
     for n = 1:N_imm
         if particles.immobile.aggState(n) ~= 0
-            agg_num = size(particles.immobile.aggregate.position{n},1); % find number of aggregates for nth particle
-            if agg_num ~= 0
-                particles.immobile.aggregate.photoState{n} = 3*ones(agg_num,total_T);
-                particles.immobile.aggregate.photoState{n}(:,1) = 1 + binornd(1,k_off/K,[agg_num,1]); % draw initial on/off states uniformly
-                particles.immobile.aggregate.obsState{n} = zeros(agg_num,total_T);
-                particles.immobile.aggregate.obsState{n}(find(particles.immobile.aggregate.photoState{n}(:,1) == 1),1) = 1; % set "on" particles to have observed state of 1
+            % number of aggregates in nth immobile particle
+            num_agg_n = size(particles.immobile.aggregate.position{n},1); 
+            if num_agg_n ~= 0
+                particles.immobile.aggregate.photoState{n} = ...
+                    agg_photo_state(cum_agg+1:cum_agg+num_agg_n,:);
+                particles.immobile.aggregate.obsState{n} = ...
+                    agg_obs_state(cum_agg+1:cum_agg+num_agg_n,:);
                 
-                %                 add_photo_state = particles.immobile.aggregate.photoState{n}(:,1); % for simplicity
-                %                 agg_photo_state = cat(1,agg_photo_state,add_photo_state);
-                %
-                %                 add_obs_state = particles.immobile.aggregate.obsState{n}(:,1); % for simplicity
-                %                 agg_obs_state = cat(1,agg_obs_state,add_obs_state);
+                cum_agg = cum_agg + num_agg_n;
             end
         end
     end
-end
-
-
-%% photo-state update
-
-if simulatePhotophysics
-    
-    K = k_on + k_off;
-    
-    % transition probabilities for blinking + bleaching
-    p_1_1 = exp(-k_p*sub_time)*(k_on + exp(-K*sub_time)*k_off)/K; %
-    p_2_1 = exp(-k_p*sub_time)*(1-exp(-K*sub_time))*k_off/K; % P(2|1)
-    p_3_1 = 1 - exp(-k_p*sub_time);
-    p_1_2 = exp(-k_p*sub_time)*(1-exp(-K*sub_time))*k_on/K;
-    p_2_2 = exp(-k_p*sub_time)*(exp(-K*sub_time)*k_on + k_off)/K;
-    p_3_2 = 1 - exp(-k_p*sub_time);
-    
-    p_1 = [p_1_1,p_2_1,p_3_1];
-    p_2 = [p_1_2,p_2_2,p_3_2];
-    
-    tic
-    disp('simulating photophysics')
-    
-    % diffusing particles
-    [photo_state,observed_state] = deal(particles.diffusing.photoState,particles.diffusing.obsState); % for simplicity
-    for t = 2:total_T
-        for i = 1:N_diff
-            r = rand();
-            if photo_state(i,t-1) == 1 % if previous state is on
-                c = cumsum(p_1);
-                j = find(c > r,1,'first');
-                if j == 1 % j is next state
-                    photo_state(i,t) = 1;
-                    observed_state(i,t) = 1;
-                elseif j == 2
-                    photo_state(i,t) = 2; % no change in observed state, since it is initialized as 0
-                elseif j == 3
-                    photo_state(i,t) = 3; % no change in observed state, since it is initialized as 0
-                end
-            elseif photo_state(i,t-1) == 2 % if previous state is off
-                c = cumsum(p_2);
-                j = find(c > r,1,'first');
-                if j == 1
-                    photo_state(i,t) = 1;
-                    observed_state(i,t) = 1;
-                elseif j == 2
-                    photo_state(i,t) = 2;
-                elseif j == 3
-                    photo_state(i,t) = 3;
-                end
-            end
-        end
-    end
-    [particles.diffusing.photoState,particles.diffusing.obsState] = deal(photo_state,observed_state);
-    
-    % immobile particles
-    [photo_state,observed_state] = deal(particles.immobile.photoState,particles.immobile.obsState);
-    for t = 2:total_T
-        for i = 1:N_imm
-            r = rand();
-            if photo_state(i,t-1) == 1
-                c = cumsum(p_1);
-                j = find(c > r,1,'first');
-                if j == 1
-                    photo_state(i,t) = 1;
-                    observed_state(i,t) = 1;
-                elseif j == 2
-                    photo_state(i,t) = 2;
-                elseif j == 3
-                    photo_state(i,t) = 3;
-                end
-            elseif photo_state(i,t-1) == 2
-                c = cumsum(p_2);
-                j = find(c > r,1,'first');
-                if j == 1
-                    photo_state(i,t) = 1;
-                    observed_state(i,t) = 1;
-                elseif j == 2
-                    photo_state(i,t) = 2;
-                elseif j == 3
-                    photo_state(i,t) = 3;
-                end
-            end
-        end
-    end
-    [particles.immobile.photoState,particles.immobile.obsState] = deal(photo_state,observed_state);
-    clear('photo_state','observed_state')
-    
-    % aggregates
-    [agg_photo_state,agg_observed_state] = deal(particles.immobile.aggregate.photoState,particles.immobile.aggregate.obsState);
-    for i = 1:N_imm
-        agg_num = size(particles.immobile.aggregate.position{i},1);
-        if agg_num ~= 0 % loop over number of particles in the ith aggregate
-            for t = 2:total_T
-                for n = 1:agg_num
-                    r = rand();
-                    if agg_photo_state{i}(n,t-1) == 1
-                        c = cumsum(p_1);
-                        j = find(c > r,1,'first');
-                        if j == 1
-                            agg_photo_state{i}(n,t) = 1;
-                            agg_observed_state{i}(n,t) = 1;
-                        elseif j == 2
-                            agg_photo_state{i}(n,t) = 2;
-                        elseif j == 3
-                            agg_photo_state{i}(n,t) = 3;
-                        end
-                    elseif agg_photo_state{i}(n,t-1) == 2
-                        c = cumsum(p_2);
-                        j = find(c > r,1,'first');
-                        if j == 1
-                            agg_photo_state{i}(n,t) = 1;
-                            agg_observed_state{i}(n,t) = 1;
-                        elseif j == 2
-                            agg_photo_state{i}(n,t) = 2;
-                        elseif j == 3
-                            agg_photo_state{i}(n,t) = 3;
-                        end
-                    end
-                end
-            end
-        end
-    end
-    [particles.immobile.aggregate.photoState,particles.immobile.aggregate.obsState] = deal(agg_photo_state,agg_observed_state);
     toc
+    %
 end
-
-obs_state_temp = [];
-for n = 1:N_imm
-    obs_state_temp = cat(1,obs_state_temp,agg_observed_state{n});
-end
-agg_observed_state = obs_state_temp;
-clear('obs_photo_state');
 
 %% position update
 disp('simulating diffusion')
@@ -312,24 +175,30 @@ end
 toc
 
 %% Image series creation
-if N_agg ~= 0
-    positions = cat(1,repmat(particles.immobile.position,[1,1,total_T]),particles.diffusing.position,repmat(agg_pos,[1,1,total_T])); % positions of all particles WHICH ARE NOT AGGREGATED
-    observed_state = cat(1,particles.immobile.obsState,particles.diffusing.obsState,agg_observed_state); % observed states of all particles WHICH ARE NOT AGGREGATED
-else
-    positions = cat(1,repmat(particles.immobile.position,[1,1,total_T]),particles.diffusing.position); % positions of all particles WHICH ARE NOT AGGREGATED
-    observed_state = cat(1,particles.immobile.obsState,particles.diffusing.obsState); % observed states of all particles WHICH ARE NOT AGGREGATED
-end
+
+% concatenate immobile molecules' positions
+imm_positions = cat(1,particles.immobile.position,agg_pos);
+imm_observed_state = cat(1,particles.immobile.obsState,agg_obs_state);
+%
 
 J = zeros(sz,sz,T);
-
-kernelSize = ceil(3*w0); % makes Gaussian kernel with radius 3*PSFsize
-% kernelSize = round((kernelSize-1)/2); %
-[x,y] = meshgrid(-kernelSize:kernelSize,-kernelSize:kernelSize);
-factor = 1; % before factor = 1/(2*pi*w0);
 
 %
 disp('generating image series')
 tic
+
+%
+disp('placing immobile molecules')
+
+pos_x = imm_positions(:,1);
+pos_y = imm_positions(:,2);
+img_kernel_stat = zeros(sz,sz,N_stat);
+parfor i = 1:N_stat
+    % get ith immobile particle position
+    pos = [pos_y(i),pos_x(i)];
+    % corresponding img kernel 
+    img_kernel_stat(:,:,i) = getImgKernel(J,pos,w0);
+end
 
 frame = 0;
 for t = 1:total_T
@@ -337,39 +206,48 @@ for t = 1:total_T
         frame = frame + 1;
     end
     
-    pos_x_t = positions(:,1,t);
-    pos_y_t = positions(:,2,t);
+    J_t_stat = zeros(sz);
+    for i = 1:N_stat
+        if imm_observed_state(i,t) ~= 0
+            % add particle signal to sub frame
+            J_t_stat = J_t_stat + sub_time*imm_observed_state(i,t)*img_kernel_stat(:,:,i);            
+        end
+    end
+    % add sub frame to whole frame
+    J(:,:,frame) = J(:,:,frame) + J_t_stat;
+end
+
+toc
+%
+
+%
+disp('placing diffusing molecules')
+prog_bar = 1; % initialize progress status
+
+frame = 0;
+diff_obs_state = particles.diffusing.obsState;
+for t = 1:total_T
+    if mod(t-1,sub_frames) == 0
+        frame = frame + 1;
+    end
+    
+    pos_x_t = particles.diffusing.position(:,1,t);
+    pos_y_t = particles.diffusing.position(:,2,t);
     J_t = zeros(sz);
-    parfor i = 1:N
-        if observed_state(i,t) ~= 0
-            dx = -round(pos_x_t(i))+pos_x_t(i); % dx shift from pixel center
-            dy = -round(pos_y_t(i))+pos_y_t(i); % dy shift from pixel center
-            
-            arg =  -2*((x-dx).*(x-dx) + (y-dy).*(y-dy))/(w0^2);
-            
-            % create PSF Gaussian kernel
-            kernel = exp(arg).*factor;
-            kernel(kernel<eps*max(kernel(:))) = 0;
-            %     sumk = sum(kernel(:));
-            %     if sumk ~= 0,
-            %       kernel  = kernel/sumk;
-            %     end
-            nonZeroEl = find(kernel);
-            % find kernel index on image
-            xcoor = mod(x(nonZeroEl) + round(pos_x_t(i)),sz);
-            ycoor = mod(y(nonZeroEl) + round(pos_y_t(i)),sz);
-            % fix MATLAB index of 1
-            xcoor(xcoor==0) = sz;
-            ycoor(ycoor==0) = sz;
-            % make image
-            imgKernel = full(sparse(ycoor,xcoor,kernel(nonZeroEl),sz,sz));
-            % add particle signal to image series
-            J_t = J_t + sub_time*observed_state(i,t)*imgKernel;
+    parfor i = 1:N_diff
+        if diff_obs_state(i,t) ~= 0
+            % get ith diffusing particle position
+            pos = [pos_y_t(i),pos_x_t(i)];
+            % corresponding kernel
+            img_kernel = getImgKernel(J,pos,w0);
+
+            J_t = J_t + sub_time*diff_obs_state(i,t)*img_kernel;
         end
     end
     J(:,:,frame) = J(:,:,frame) + J_t;
-    if mod(t,1000) == 0 
-        disp(['progress: ',num2str(t),'/',num2str(total_T),' after ',num2str(toc),' s.'])
+    if frame/T >= prog_bar*0.1 % display updated progress every 10%
+        disp(['progress: ',num2str(frame/T*100),'% after ',num2str(toc),' s.'])
+        prog_bar = prog_bar + 1;
     end
 end
 
@@ -385,6 +263,7 @@ if addNoise
 end
 
 %% save simulation info
+
 % store raw info in "sim_info"
 sim_info.N_diff = N_diff; % number of diffusing particles (input param)
 sim_info.N_imm = N_imm; % number of immobile particles
