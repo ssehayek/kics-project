@@ -5,15 +5,15 @@
 
 # These variables will be updated by preSubScript
 
-CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code"
-NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analysis/queued-jobs/job_1"
-CODECLASS="SOFI-Project"
+CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/sofi-project-priv"
+NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analysis/queued-jobs/cf6c4179-eff2-463f-9bc9-4321e69530a7"
+#CODECLASS="SOFI-Project"
 RUNTAG=""
 
 ###############################################
 cd "${NEWDIR}"
 
-MSCRIPT="${CODEPATH}/${CODECLASS}/dataClusterCode.m"
+MSCRIPT="${CODEPATH}/cluster-compilers/data-analysis/dataClusterCode.m"
 
 DATETAG=$(date +"%Y-%m-%d-%Hh%Mm%Ss")
 matlab -nodisplay < "$MSCRIPT" > "${NEWDIR}/${DATETAG}.out" 2> "${NEWDIR}/${DATETAG}.err"

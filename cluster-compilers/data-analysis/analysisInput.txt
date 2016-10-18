@@ -46,6 +46,9 @@ xi_lags | eta_lags
 
 ############## kICS FIT ############### 
 
+# fit routine
+'noBleach' | fit_opt
+
 # parallel boolean
 1 | parallel
 # if parallel is true, choose number of start points to try
@@ -56,9 +59,6 @@ xi_lags | eta_lags
 0 | tolFun
 # output manymins object
 1 | output_mins
-
-# lag to norm by (actual lag value)
-0 | normByLag
 
 # lags to fit (actual tau values)
 [1:5] | tauVector

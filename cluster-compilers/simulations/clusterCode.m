@@ -7,12 +7,11 @@ rng shuffle
 run('getAnalysisInput') % gets all parameters from "analysisInput.txt.mv"
 
 addpath(genpath(codePath))
-% cd to main project folder (this is "BASEDIR"
-% in preSubScript)
+% cd to main project folder (this is "BASEDIR" in preSubScript)
 cd(['..',filesep,'..']) 
 
 % organization for simulations
-
+%
 % this is meant to better organize files & speed up simulations
 if num_filaments == 0 || prob_place == 0 % no filaments means no immobile particles, or aggregates
     prob_agg = 0; mean_agg_num = 0; std_agg_dist = 0;
@@ -46,10 +45,11 @@ end
 
 simfilepath_rel = [paramStr1,filesep,paramStr2,filesep,paramStr3,filesep,paramStr4]; % relative path to simulation file
 
-simfilepath_abs = [saveSimDir,filesep,simfilepath_rel,'_rep_',num2str(loadRep),'.mat']  % absolute path to simulation file.
-% this path is only complete if loadRep is non-empty,
-% o.w. the path is partial.
+% absolute path to simulation file this path is only complete if loadRep is
+% non-empty, o.w. the path is partial. 
 % note that loadRep is empty if createSim=0.
+simfilepath_abs = [saveSimDir,filesep,simfilepath_rel,'_rep_',num2str(loadRep),'.mat']  
+
 simdirpath_rel = [paramStr1,filesep,paramStr2,filesep,paramStr3]; % relative path to simulation directory
 simdirpath_abs = [saveSimDir,filesep,simdirpath_rel]; % relative path to simulation directory
 
@@ -89,17 +89,23 @@ movefile(runDir,new_runDir) % rename queued job folder to "new_runDir" (within "
 runDir = new_runDir; 
 runName = new_runName;
 
+% new relative run path
 if isempty(runClass) == 0
-    rundirpath_rel = [runClass,filesep,simfilepath_rel]; % new relative run path (with class)
+    % with class specified
+    rundirpath_rel = [runClass,filesep,simfilepath_rel]; 
 else
-    rundirpath_rel = simfilepath_rel; % new relative run path (no class)
+    % without class
+    rundirpath_rel = simfilepath_rel;
 end
 
-if exist(rundirpath_rel,'dir') == 0 % this won't overwrite anyway, but this is just a safety measure
-    mkdir(rundirpath_rel);          % folder named "runName" is moved to "rundirpath_rel"
+% this won't overwrite anyway, but this is just a safety measure
+% folder named "runName" is moved to "rundirpath_rel"
+if exist(rundirpath_rel,'dir') == 0 
+    mkdir(rundirpath_rel);          
 end
 
-if exist([rundirpath_rel,filesep,runName],'dir') ~= 0 % exits if run with same name already exists
+% exits if run with same name already exists
+if exist([rundirpath_rel,filesep,runName],'dir') ~= 0 
     disp('Run already exists under this name. Please change value of runName.');
     [error_dir,~] = iterateFilename(['errors',filesep,'error']);
     mkdir(error_dir)
@@ -111,10 +117,27 @@ movefile(runDir,rundirpath_rel); % rename run directory
 cd([rundirpath_rel,filesep,runName])
 runDir = pwd; % replace runDir definition
 
+mkdir('analysis')
+
+% define fit routine
+if fitSim
+    if any(strcmpi(fit_opt,{'bleach','bleaching','includeBleaching'}))
+        fit_opt = 'bleach';
+    elseif any(strcmpi(fit_opt,{'noBleach','noBleaching','weakBleach',...
+            'weakBleaching'}))
+        fit_opt = 'nobleach';
+    else
+        error('Unknown fitting routine specified.')
+    end
+else
+    fit_opt = '';
+end
+%
+
 %% create simulations
 
 if createSim
-    [J,sim_info] = dronpaSimParallel(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
+    [J,sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
         prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,...
         'snr',snr,'subFrames',n_sub_frames); % create simulation
     
@@ -134,8 +157,6 @@ sim_info.true_params(6) = sim_info.eta_p;
 %
 
 %% fit intensity trace
-
-mkdir('analysis')
 
 [p,ci,bleach_fig] = bleachFit(J)
 k_p_fit = p(2); % fitted value for bleaching rate
@@ -162,7 +183,7 @@ r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
 %
 tic
 
-r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)]),'normByLag',normByLag); % kICS autocorrelation function (ACF)
+r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)])); % kICS autocorrelation function (ACF)
 if do_interp
     n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
     
@@ -233,11 +254,29 @@ end
 
 kICSCorrSubset = mean(abs(r_k_abs),3); % corresponding subset of kICS ACF
 
-if fitSim
-    % function handle of LSF error
+% function handles of LSF error and fit functions
+if strcmp(fit_opt,'bleach')
+    % with bleaching
+    err = @(params) timeIntkICSBleachFit(params,kSqVectorSubset,tauVector,...
+        k_p_fit,T,'err',kICSCorrSubset);
+    fit_fun = @(params,ksq,tau) timeIntkICSBleachFit(params,ksq,tau,...
+        k_p_fit,T);
+    old_fit_fun = @(params,ksq,tau)...
+        kICSNormTauFitFluctNoiseBleachBlinkFrac(params,ksq,tau,...
+        k_p_fit,T);
+elseif strcmp(fit_opt,'nobleach')
+    % without bleaching
     err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
-        k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset);
-    
+        'err',kICSCorrSubset);
+    fit_fun = @(params,ksq,tau) timeIntkICSFit(params,ksq,tau);
+    old_fit_fun = @(params,ksq,tau)...
+        kICSNormTauFitFluctNoiseFrac(params,ksq,tau);
+else
+    error('Unknown fitting routine specified.')
+end
+%
+
+if fitSim
     tic
     if parallel
         parpool % start parallel pool
@@ -324,9 +363,10 @@ saveas(gcf,filename)
 % time-int theory
 %
 h_theory = zeros(1,length(plotTauLags));
-for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    h_theory(tauInd) = plot(ksq2plot,timeIntkICSFit(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
-        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
+for tauInd = 1:length(plotTauLags)
+    h_theory(tauInd) = plot(ksq2plot,fit_fun(sim_info.true_params,...
+        ksq2plot,plotTauLags(tauInd)),...
+        '--','Color',color(tauInd,:)); 
 end
 tightfig(gcf)
 %
@@ -340,11 +380,10 @@ saveas(gcf,filename)
 % no time-int theory
 %
 delete(h_theory)
-for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
+for tauInd = 1:length(plotTauLags) 
     h_theory(tauInd) = plot(ksq2plot,...
-        kICSNormTauFitFluctNoiseBleachBlinkFrac(sim_info.true_params,...
-        ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
-        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
+        old_fit_fun(sim_info.true_params,ksq2plot,plotTauLags(tauInd)),...
+        ':','Color',color(tauInd,:)); 
 end
 tightfig(gcf)
 % save plots with theory curves superimposed
@@ -359,9 +398,10 @@ saveas(gcf,filename)
 if fitSim
     delete(h_theory) % delete theory curve handles
     
-    for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-        plot(ksq2plot,timeIntkICSFit(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
-            'Color',color(tauInd,:)) % plot best fit kICS ACF
+    for tauInd = 1:length(plotTauLags) 
+        % plot best fit kICS ACF
+        plot(ksq2plot,fit_fun(opt_params,ksq2plot,plotTauLags(tauInd)),...
+            'Color',color(tauInd,:)) 
     end
     tightfig(gcf)
     

@@ -6,22 +6,25 @@ Q_TYPE="condor" # input either "condor" or "torque"
 
 # These variables don't need to be updated in either analysisInput.txt, or submitMatlabJob
 
-RUNTAG="manymins"																	# 
-RUNCLASS="high-noise" 														# organizational subdirectory
-CODECLASS="SOFI-Project" 													# project name
-CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code" 					# folder containing all codes (recursive)
-BASEDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/${CODECLASS}/main" 	# folder for storing the runs
-SAVESIMDIR="${BASEDIR}/SimulationData"										# folder for storing simulations
+RUNTAG="create-par"		 
+RUNCLASS="xy-test" # organizational subdirectory
+#CODECLASS="SOFI-Project" # project name
+CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/sofi-project-priv" # folder containing all codes (recursive)
+BASEDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main" # folder for storing the runs
+SAVESIMDIR="${BASEDIR}/SimulationData" # folder for storing simulations
 
-CREATESIM=1				# create simulations logical
-FITSIM=1 				# compare theory to simulations logical
-LOADREP_ARR=1 			# simulation repetition numbers to load (only relevant if FITSIM=1 & CREATESIM=0)
-						# bash syntax ({start..end})
-					
+CREATESIM=1 # create simulations logical
+FITSIM=0 # fit simulations logical
+
+# simulation repetition numbers to load (only relevant if FITSIM=1 & CREATESIM=0)
+# bash syntax ({start..end})
+LOADREP_ARR=0
+						
 ###############################################
 
-if [[ ${CREATESIM} -eq 1 ]] # $LOADREP_ARR is not relevant if creating another simulation,
-                            # in this case $LOADREP_ARR is set to empty MATLAB array
+# $LOADREP_ARR is not relevant if creating another simulation,
+# in this case $LOADREP_ARR is set to empty MATLAB array
+if [[ ${CREATESIM} -eq 1 ]] 
 then 
 	unset LOADREP_ARR
 	LOADREP_ARR="[]"   
@@ -36,11 +39,12 @@ do
 	
 	LOADREP=${LOADREP_ARR[$i]}
 
-	# unique job names (temp directory)
-	NEWDIR="${BASEDIR}/queued-jobs/" 
+	NEWDIR="${BASEDIR}/queued-jobs/" # job temp directory
+
+
+	# unique job names
 	UUID=$(uuidgen)
 	NEWDIR="${NEWDIR}${UUID}"
-	#
 			
 	mkdir -p "${NEWDIR}"
 
@@ -58,12 +62,12 @@ do
 
 	sed -i '/NEWDIR=/c\NEWDIR='\""${NEWDIR}"\"'' submitMatlabJob
 	sed -i '/CODEPATH=/c\CODEPATH='\""${CODEPATH}"\"'' submitMatlabJob
-	sed -i '/CODECLASS=/c\CODECLASS='\""${CODECLASS}"\"'' submitMatlabJob
+	#sed -i '/CODECLASS=/c\CODECLASS='\""${CODECLASS}"\"'' submitMatlabJob
 	sed -i '/RUNTAG=/c\RUNTAG='\""${RUNTAG}"\"'' submitMatlabJob
 	
 	#sed -i '/initialdir=/c\initialdir='"${NEWDIR}"'' condor_script
 
-	cd "${CODEPATH}/GeneralUtilities"
+	cd "${CODEPATH}/general-utilities/miscellaneous"
 	#ln -s ${CODEPATH}/GeneralUtilities/getAnalysisInput.m ${NEWDIR}
 	cp getAnalysisInput.m{,.tmp}
 	mv getAnalysisInput.m "${NEWDIR}"
@@ -85,7 +89,7 @@ do
 	fi
 
 	cd "${NEWDIR}"
-
+	
 	### SUBMIT JOB TO QUEUE
 
 	if [[ "$Q_TYPE" == "torque" ]]

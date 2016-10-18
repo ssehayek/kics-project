@@ -7,7 +7,7 @@
 
 ########### SAVE DIRECTORIES ########### (change in preSubScript)
 
-'/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/' | codePath
+'/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/sofi-project-priv' | codePath
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main' | baseDir
 '/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/SimulationData' | saveSimDir
 
@@ -38,7 +38,8 @@
 0.5 | prob_place
 
 ## VARARGIN
-2 | snr
+# enter 'none' for no noise
+'none' | snr 
 
 ############## ICS COMPUTATION ############### 
 
@@ -72,6 +73,9 @@ xi_lags | eta_lags
 
 ############## kICS FIT ############### 
 
+# fit routine
+'noBleach' | fit_opt
+
 # parallel boolean
 1 | parallel
 # if parallel is true, choose number of start points to try
@@ -82,9 +86,6 @@ xi_lags | eta_lags
 0 | tolFun
 # output manymins object
 0 | output_mins
-
-# lag to norm by (actual lag value)
-0 | normByLag
 
 # lags to fit (actual tau values)
 [1:10] | tauVector

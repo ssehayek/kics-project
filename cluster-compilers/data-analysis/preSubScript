@@ -6,11 +6,11 @@ Q_TYPE="condor" # input either "condor" or "torque"
 
 # These variables don't need to be updated in either analysisInput.txt, or submitMatlabJob
 
-RUNTAG=""																			# default: $(date +"%Y-%m-%d-%Hh%Mm%Ss")
-RUNCLASS=""																			# organizational subdirectory
-CODECLASS="SOFI-Project" 															# project name
-CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code" 							# folder containing all codes (recursive)
-BASEDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/${CODECLASS}/data-analysis" 	# folder for storing the runs
+RUNTAG="" # default: $(date +"%Y-%m-%d-%Hh%Mm%Ss")
+RUNCLASS="xy-simulations" # organizational subdirectory
+#PROJECT="SOFI-Project" # project name
+CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/sofi-project-priv" # folder containing all codes (recursive)
+BASEDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analysis" # folder for storing the runs
 
 # path to stored data file
 LOADPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/data-analysis/Saved Sessions/Feb 24/ROI_X_250_336_Y_31_125_TOI_2550_4000.sv.mat"	
@@ -40,10 +40,10 @@ sed -i '/loadPath/c\'\'"${LOADPATH}\' |"' loadPath' analysisInput.txt
 
 sed -i '/NEWDIR=/c\NEWDIR='\""${NEWDIR}"\"'' submitMatlabJob
 sed -i '/CODEPATH=/c\CODEPATH='\""${CODEPATH}"\"'' submitMatlabJob
-sed -i '/CODECLASS=/c\CODECLASS='\""${CODECLASS}"\"'' submitMatlabJob
+#sed -i '/CODECLASS=/c\CODECLASS='\""${CODECLASS}"\"'' submitMatlabJob
 sed -i '/RUNTAG=/c\RUNTAG='\""${RUNTAG}"\"'' submitMatlabJob
 
-cd "${CODEPATH}/GeneralUtilities"
+cd "${CODEPATH}/general-utilities/miscellaneous"
 #ln -s ${CODEPATH}/GeneralUtilities/getAnalysisInput.m ${NEWDIR}
 cp getAnalysisInput.m{,.tmp}
 mv getAnalysisInput.m "${NEWDIR}"

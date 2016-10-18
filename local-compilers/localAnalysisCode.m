@@ -5,7 +5,8 @@ rng shuffle % reseed the random number generator; otherwise same random
 
 %%%%%% Internal Parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-codePath = 'C:\Users\SimonS\Dropbox (Personal)\Research\PhD\SOFI-Project'; % path where all codes are stored (recursive)
+% path where all codes are stored (recursive)
+codePath = 'C:\Users\Simon\Dropbox (Personal)\Research\PhD\sofi-project-priv';
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -17,7 +18,7 @@ codePath = 'C:\Users\SimonS\Dropbox (Personal)\Research\PhD\SOFI-Project'; % pat
 sz = 64; 
 T = 50; 
 n_sub_frames = 10;
-w0 = 0.61*522/(2.8*178); 
+w0 = 0.61*522/(1.4*178); 
 N_diff = 500; 
 D = 1; 
 k_on = 0.2; 
@@ -72,9 +73,8 @@ n_theta = 1000;
 
 do_fit = 0; % run fit algorithm
 
-normByLag = 0; % actual lag values i.e. tau=0 is 0th lag
-
-% fitting 
+% fitting
+fit_opt = '';
 tauVector = 1:5; % tau values to fit
 
 %%% OLD FORMAT
@@ -108,7 +108,6 @@ kSqMax = 'max';
 
 addpath(genpath(codePath)) % add all codes to path variable (recursive)
 
-J = zeros(sz,sz,T); 
 % create simulation
 [J,sim_info] = dronpaSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
     prob_agg,mean_agg_num,std_agg_dist,num_filaments,prob_place,'snr',snr,...
@@ -142,7 +141,7 @@ r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
 %
 tic
 
-r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)]),'normByLag',normByLag); % kICS autocorrelation function (ACF)
+r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)])); % kICS autocorrelation function (ACF)
 if do_interp
     n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
     
@@ -197,9 +196,30 @@ end
 kICSCorrSubset = mean(abs(r_k_abs),3); % corresponding subset of kICS ACF
 % kICSStdDev = std(abs(r_k_abs),0,3)/sqrt(nReps); % standard deviation of ACF (relevant if nReps > 1)
 
-if do_fit
+% function handles of LSF error and fit functions
+if any(strcmpi(fit_opt,{'bleach','bleaching','includeBleaching'}))
+    % with bleaching
+    err = @(params) timeIntkICSBleachFit(params,kSqVectorSubset,tauVector,...
+        k_p_fit,T,'err',kICSCorrSubset);
+    fit_fun = @(params,ksq,tau) timeIntkICSBleachFit(params,ksq,tau,...
+        k_p_fit,T);
+    old_fit_fun = @(params,ksq,tau)...
+        kICSNormTauFitFluctNoiseBleachBlinkFrac(params,ksq,tau,...
+        k_p_fit,T);
+elseif any(strcmpi(fit_opt,{'noBleach','noBleaching','weakBleach',...
+        'weakBleaching'}))
+    % without bleaching
     err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
-        k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset);
+        'err',kICSCorrSubset);
+    fit_fun = @(params,ksq,tau) timeIntkICSFit(params,ksq,tau);
+    old_fit_fun = @(params,ksq,tau)...
+        kICSNormTauFitFluctNoiseFrac(params,ksq,tau);
+else
+    error('Unknown fitting routine specified.')
+end
+%
+    
+if do_fit    
 	tic
 	%
 	opts = optimoptions(@fmincon,'Algorithm','interior-point');
@@ -250,23 +270,23 @@ end
 % theory (with time-int)
 set(0,'CurrentFigure',h(1))
 for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    plot(ksq2plot,timeIntkICSFit(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
-        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
+    plot(ksq2plot,fit_fun(sim_info.true_params,ksq2plot,plotTauLags(tauInd)),...
+        '--','Color',color(tauInd,:)); 
 end
 title('compare with theory (time-int)','interpreter','latex')
 %
 % theory (no time-int)
 set(0,'CurrentFigure',h(2))
 for tauInd = 1:length(plotTauLags)
-    plot(ksq2plot,kICSNormTauFitFluctNoiseBleachBlinkFrac(sim_info.true_params,ksq2plot,plotTauLags(tauInd),k_p,T,'normByLag',normByLag),...
-        '--','Color',color(tauInd,:)); % plot theoretical kICS ACF
+    plot(ksq2plot,old_fit_fun(sim_info.true_params,ksq2plot,...
+        plotTauLags(tauInd)),'--','Color',color(tauInd,:));
 end
 title('compare with theory (no time-int)','interpreter','latex')
 %
 % best fit 
 if do_fit
     for tauInd = 1:length(plotTauLags) 
-        plot(ksq2plot,timeIntkICSFit(opt_params,ksq2plot,plotTauLags(tauInd),k_p_fit,T,'normByLag',normByLag),...
+        plot(ksq2plot,fit_fun(opt_params,ksq2plot,plotTauLags(tauInd)),...
             'Color',color(tauInd,:)) % plot best fit kICS ACF    
     end
     title('best fit','interpreter','latex')

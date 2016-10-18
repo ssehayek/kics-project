@@ -5,20 +5,20 @@
 
 # These variables will be updated by preSubScript
 
-CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code"
-NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/job_5"
-CODECLASS="SOFI-Project"
-RUNTAG="manymins"
+CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/Simon/Code/sofi-project-priv"
+NEWDIR="/media/3TB-GPU-Drive/simon.sehayek/Simon/runs/SOFI-Project/main/queued-jobs/00f25a75-f602-4914-8488-f61597dd9829"
+#CODECLASS="SOFI-Project"
+RUNTAG="create-par"
 
 ###############################################
 cd "${NEWDIR}"
 
-MSCRIPT="${CODEPATH}/${CODECLASS}/clusterCode.m"
+MSCRIPT="${CODEPATH}/cluster-compilers/simulations/clusterCode.m"
 
 DATETAG=$(date +"%Y-%m-%d-%Hh%Mm%Ss")
 matlab -nodisplay < "$MSCRIPT" > "${NEWDIR}/${DATETAG}.out" 2> "${NEWDIR}/${DATETAG}.err"
 
-if [[ -d "${NEWDIR}" ]] 			# only execute if new directory exists
+if [[ -d "${NEWDIR}" ]] # only execute if new directory exists
 then 
 	cd "${NEWDIR}"			
 	rm getAnalysisInput.m		

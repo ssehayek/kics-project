@@ -24,8 +24,10 @@ else
     new_runDir = [baseDir,filesep,'runs',filesep,loadClass,filesep,loadName]; % new absolute run path (no class)
 end
 
-if exist(new_runDir,'dir') == 0 % this won't overwrite anyway, but this is just a safety measure
-    mkdir(new_runDir);          % folder named "runName" is moved to "rundirpath_rel"
+% this won't overwrite anyway, but this is just a safety measure
+% folder named "runName" is moved to "rundirpath_rel"
+if exist(new_runDir,'dir') == 0 
+    mkdir(new_runDir);        
 end
 
 tauMax = max(tauVector);%%
@@ -43,10 +45,21 @@ new_jobDir = [baseDir,filesep,'queued-jobs',filesep,new_runName]; % append "runT
 movefile(runDir,new_jobDir) % rename queued job folder to string in "new_runDir" (within "queued-jobs" folder)
 
 % redefine variables 
-runName = new_runName;%%
+runName = new_runName;
 
 movefile(new_jobDir,new_runDir); % move from "queued-jobs" folder
 runDir = [new_runDir,filesep,runName]; % replace runDir definition
+
+% define fit routine
+if any(strcmpi(fit_opt,{'bleach','bleaching','includeBleaching'}))
+    fit_opt = 'bleach';
+elseif any(strcmpi(fit_opt,{'noBleach','noBleaching','weakBleach',...
+        'weakBleaching'}))
+    fit_opt = 'nobleach';
+else
+    error('Unknown fitting routine specified.')
+end
+%
 
 %% load data
 
@@ -86,7 +99,7 @@ if redo_kics
     %
     tic
     
-    r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)]),'normByLag',normByLag); % kICS autocorrelation function (ACF)
+    r_k_norm = kICS3(J-repmat(mean(J,3),[1,1,size(J,3)])); % kICS autocorrelation function (ACF)
     if do_interp
         n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
         
@@ -150,8 +163,23 @@ end
 kICSCorrSubset = r_k_abs; % corresponding subset of kICS ACF
 
 T = length(session_info.tRange);
-err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
-    k_p_fit,T,'normByLag',normByLag,'err',kICSCorrSubset); % function handle of LSF error
+
+% function handles of LSF error and fit functions
+if strcmp(fit_opt,'bleach')
+    % with bleaching
+    err = @(params) timeIntkICSBleachFit(params,kSqVectorSubset,tauVector,...
+        k_p_fit,T,'err',kICSCorrSubset);
+    fit_fun = @(params,ksq,tau) timeIntkICSBleachFit(params,ksq,tau,...
+        k_p_fit,T);
+elseif strcmp(fit_opt,'nobleach')
+    % without bleaching
+    err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
+        'err',kICSCorrSubset);
+    fit_fun = @(params,ksq,tau) timeIntkICSFit(params,ksq,tau);
+else
+    error('Unknown fitting routine specified.')
+end
+%
 
 tic
 if parallel
@@ -212,18 +240,21 @@ figure()
 hold on
 box on
 
+% loop and plot over fixed time lag
 color = lines(length(plotTauLags));
 plotLegend = cell(1,length(plotTauLags));
 h_sim_data = zeros(1,length(plotTauLags));
-for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),'.','markersize',16,'Color',color(tauInd,:)); % plot heuristic kICS ACF
+for tauInd = 1:length(plotTauLags) 
+    % plot heuristic kICS ACF
+    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),...
+        '.','markersize',16,'Color',color(tauInd,:)); 
     plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
 end
 % labeling
 xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
 ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
 legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
-xlim([kSqMin kSqMax])
+xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
 ylims = get(gca,'ylim');
 ylim([0 ylims(2)])
 tightfig(gcf) % no white-space (3rd party package; works for release 2015a)
@@ -237,8 +268,8 @@ saveas(gcf,filename)
 %% plot best fit curves
 
 for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    plot(ksq2plot,timeIntkICSFit(opt_params,ksq2plot,plotTauLags(tauInd),...
-        k_p_fit,T,'normByLag',normByLag),'Color',color(tauInd,:)) % plot best fit kICS ACF
+    plot(ksq2plot,fit_fun(opt_params,ksq2plot,plotTauLags(tauInd)),...
+        'Color',color(tauInd,:)) % plot best fit kICS ACF
 end
 tightfig(gcf)
 

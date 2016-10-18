@@ -1,6 +1,6 @@
-% timeIntkICSFit(...) help header
+% timeIntkICSBleachFit(...) help header
 
-function out = timeIntkICSFit(params,kSq,tauVector,varargin)
+function out = timeIntkICSBleachFit(params,kSq,tauVector,k_p,T,varargin)
 
 errBool = 0;
 for i = 1:length(varargin)
@@ -11,13 +11,14 @@ for i = 1:length(varargin)
     end
 end
 
-s = struct('diffusion',params(1),'r',params(2),'K',params(3),'frac',params(4),'w0',params(5),'sigma',params(6));
+s = struct('diffusion',params(1),'r',params(2),'K',params(3),...
+    'frac',params(4),'w0',params(5),'sigma',params(6));
 
 [tauGrid,kSqGrid] = meshgrid(tauVector,kSq);
 
 % fit function computation
 [diff_term,static_term,diff_term_norm,static_term_norm] = ...
-    timeIntFn(s,tauGrid,kSqGrid);
+    timeIntBleachFn(s,tauGrid,kSqGrid,k_p,T);
 
 % PSF in k-space
 Ik = exp(-s.w0^2.*kSqGrid/8); 
@@ -43,5 +44,6 @@ else % output error
 end
 
 if isnan(out)
-    error(['Function is undefined for params: ',num2str(params),'.'])
+    error(['Function is undefined for params: ',num2str(params),...
+        sprintf('\n'),'with k_p = ',num2str(k_p),'.'])
 end
