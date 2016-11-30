@@ -75,10 +75,31 @@ if ~isempty(loadRep) % this condition should only be true if createSim=0
     disp(['loading repetition ',num2str(num_rep),' for analysis.'])
 end
 
+% define fit routine
+if any(strcmpi(fit_opt,{'bleach','bleaching','includeBleaching'}))
+    fit_opt = 'bleach';
+elseif any(strcmpi(fit_opt,{'noBleach','noBleaching','weakBleach',...
+        'weakBleaching'}))
+    fit_opt = 'nobleach';
+else
+    error('Unknown fitting routine specified.')
+end
+
+% tag for ics guess option
+if fitSim && use_ics_guess % use ics guess
+    guess_tag = '--use-guess';
+elseif fitSim && ~use_ics_guess % no ics guess
+    guess_tag = '--no-guess';
+else % n/a
+    guess_tag = ''; 
+end
+%
+
 tauMax = max(tauVector);
-runName = strcat('tauMax-',num2str(tauMax),'--kSqMax-',num2str(kSqMax));
+runName = strcat('tauMax-',num2str(tauMax),'--kSqMax-',num2str(kSqMax),...
+    '--',fit_opt,'-opt',guess_tag);
 if isempty(runTag) == 0 % append rep number to end of "runName"
-    new_runName = [runName,'--',runTag,'--rep-',num2str(num_rep)];  % new run name (with tag)
+    new_runName = [runName,'--',runTag,'--rep-',num2str(num_rep)]; % new run name (with tag)
 else
     new_runName = [runName,'--rep-',num2str(num_rep)]; % new run name (no tag)
 end 
@@ -118,21 +139,6 @@ cd([rundirpath_rel,filesep,runName])
 runDir = pwd; % replace runDir definition
 
 mkdir('analysis')
-
-% define fit routine
-if fitSim
-    if any(strcmpi(fit_opt,{'bleach','bleaching','includeBleaching'}))
-        fit_opt = 'bleach';
-    elseif any(strcmpi(fit_opt,{'noBleach','noBleaching','weakBleach',...
-            'weakBleaching'}))
-        fit_opt = 'nobleach';
-    else
-        error('Unknown fitting routine specified.')
-    end
-else
-    fit_opt = '';
-end
-%
 
 %% create simulations
 
@@ -210,6 +216,95 @@ cd(runDir)
 filename = [runDir filesep 'analysis' filesep 'kICS_Data.mat'];
 save(filename,'kSqVector','r_k_abs','r_k_norm'); % save computed kICS ACF
 
+%% plot simulation data
+
+% |k|^2 for plotting best fit/theory curves
+ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); 
+
+figure()
+hold on
+box on
+
+color = lines(length(plotTauLags));
+plotLegend = cell(1,length(plotTauLags));
+h_sim_data = zeros(1,length(plotTauLags));
+for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
+    h_sim_data(tauInd) = plot(kSqVectorSubset,r_k_abs(:,tauInd),...
+        '.','markersize',16,'Color',color(tauInd,:)); % plot simulated kICS ACF
+    plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
+end
+% labeling
+xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
+ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
+legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
+xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
+ylims = get(gca,'ylim');
+ylim([0 ylims(2)])
+tightfig(gcf)
+
+% save plots without fits
+filename = [runDir filesep 'analysis' filesep runName '_nofit.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_nofit.pdf']; % save figure .pdf
+saveas(gcf,filename)
+
+%% plot theoretical curves
+
+% function handles of LSF error and fit functions
+if strcmp(fit_opt,'bleach')
+    % with bleaching
+    err = @(params) timeIntkICSBleachFit(params,kSqVectorSubset,tauVector,...
+        k_p_fit,T,'err',r_k_abs);
+    fit_fun = @(params,ksq,tau) timeIntkICSBleachFit(params,ksq,tau,...
+        k_p_fit,T);
+    old_fit_fun = @(params,ksq,tau)...
+        kICSNormTauFitFluctNoiseBleachBlinkFrac(params,ksq,tau,...
+        k_p_fit,T);
+elseif strcmp(fit_opt,'nobleach')
+    % without bleaching
+    err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
+        'err',r_k_abs);
+    fit_fun = @(params,ksq,tau) timeIntkICSFit(params,ksq,tau);
+    old_fit_fun = @(params,ksq,tau)...
+        kICSNormTauFitFluctNoiseFrac(params,ksq,tau);
+else
+    error('Unknown fitting routine specified.')
+end
+%
+
+% time-int theory
+%
+h_theory = zeros(1,length(plotTauLags));
+for tauInd = 1:length(plotTauLags)
+    h_theory(tauInd) = plot(ksq2plot,fit_fun(sim_info.true_params,...
+        ksq2plot,plotTauLags(tauInd)),...
+        '--','Color',color(tauInd,:)); 
+end
+tightfig(gcf)
+%
+% save plots with theory curves superimposed
+filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.pdf']; % save figure .pdf
+saveas(gcf,filename)
+%
+
+% no time-int theory
+%
+delete(h_theory)
+for tauInd = 1:length(plotTauLags) 
+    h_theory(tauInd) = plot(ksq2plot,...
+        old_fit_fun(sim_info.true_params,ksq2plot,plotTauLags(tauInd)),...
+        ':','Color',color(tauInd,:)); 
+end
+tightfig(gcf)
+% save plots with theory curves superimposed
+filename = [runDir filesep 'analysis' filesep runName '_theory_no_time_int.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [runDir filesep 'analysis' filesep runName '_theory_no_time_int.pdf']; % save figure .pdf
+saveas(gcf,filename)
+%
+
 %% ICS for guesses
 
 if use_ics_guess && fitSim
@@ -251,30 +346,6 @@ if use_ics_guess && fitSim
 end
 
 %% kICS fitting
-
-kICSCorrSubset = mean(abs(r_k_abs),3); % corresponding subset of kICS ACF
-
-% function handles of LSF error and fit functions
-if strcmp(fit_opt,'bleach')
-    % with bleaching
-    err = @(params) timeIntkICSBleachFit(params,kSqVectorSubset,tauVector,...
-        k_p_fit,T,'err',kICSCorrSubset);
-    fit_fun = @(params,ksq,tau) timeIntkICSBleachFit(params,ksq,tau,...
-        k_p_fit,T);
-    old_fit_fun = @(params,ksq,tau)...
-        kICSNormTauFitFluctNoiseBleachBlinkFrac(params,ksq,tau,...
-        k_p_fit,T);
-elseif strcmp(fit_opt,'nobleach')
-    % without bleaching
-    err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
-        'err',kICSCorrSubset);
-    fit_fun = @(params,ksq,tau) timeIntkICSFit(params,ksq,tau);
-    old_fit_fun = @(params,ksq,tau)...
-        kICSNormTauFitFluctNoiseFrac(params,ksq,tau);
-else
-    error('Unknown fitting routine specified.')
-end
-%
 
 if fitSim
     tic
@@ -326,72 +397,6 @@ if fitSim
     kics_fit_info.err_min = err_min;
     kics_fit_info.hessian = hessian;
 end
-
-%% plot simulation data
-
-ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit/theory curves
-
-figure()
-hold on
-box on
-
-color = lines(length(plotTauLags));
-plotLegend = cell(1,length(plotTauLags));
-h_sim_data = zeros(1,length(plotTauLags));
-for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),...
-        '.','markersize',16,'Color',color(tauInd,:)); % plot simulated kICS ACF
-    plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
-end
-% labeling
-xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
-ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
-legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
-xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
-ylims = get(gca,'ylim');
-ylim([0 ylims(2)])
-tightfig(gcf)
-
-% save plots without fits
-filename = [runDir filesep 'analysis' filesep runName '_nofit.fig']; % save figure .fig
-saveas(gcf,filename)
-filename = [runDir filesep 'analysis' filesep runName '_nofit.pdf']; % save figure .pdf
-saveas(gcf,filename)
-
-%% plot theoretical curves
-
-% time-int theory
-%
-h_theory = zeros(1,length(plotTauLags));
-for tauInd = 1:length(plotTauLags)
-    h_theory(tauInd) = plot(ksq2plot,fit_fun(sim_info.true_params,...
-        ksq2plot,plotTauLags(tauInd)),...
-        '--','Color',color(tauInd,:)); 
-end
-tightfig(gcf)
-%
-% save plots with theory curves superimposed
-filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.fig']; % save figure .fig
-saveas(gcf,filename)
-filename = [runDir filesep 'analysis' filesep runName '_theory_time_int.pdf']; % save figure .pdf
-saveas(gcf,filename)
-%
-
-% no time-int theory
-%
-delete(h_theory)
-for tauInd = 1:length(plotTauLags) 
-    h_theory(tauInd) = plot(ksq2plot,...
-        old_fit_fun(sim_info.true_params,ksq2plot,plotTauLags(tauInd)),...
-        ':','Color',color(tauInd,:)); 
-end
-tightfig(gcf)
-% save plots with theory curves superimposed
-filename = [runDir filesep 'analysis' filesep runName '_theory_no_time_int.fig']; % save figure .fig
-saveas(gcf,filename)
-filename = [runDir filesep 'analysis' filesep runName '_theory_no_time_int.pdf']; % save figure .pdf
-saveas(gcf,filename)
-%
 
 %% plot best fit curves
 

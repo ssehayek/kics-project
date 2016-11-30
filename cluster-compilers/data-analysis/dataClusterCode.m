@@ -30,8 +30,27 @@ if exist(new_runDir,'dir') == 0
     mkdir(new_runDir);        
 end
 
+% define fit routine
+if any(strcmpi(fit_opt,{'bleach','bleaching','includeBleaching'}))
+    fit_opt = 'bleach';
+elseif any(strcmpi(fit_opt,{'noBleach','noBleaching','weakBleach',...
+        'weakBleaching'}))
+    fit_opt = 'nobleach';
+else
+    error('Unknown fitting routine specified.')
+end
+
+% tag for ics guess option
+if use_ics_guess % use ics guess
+    guess_tag = '--use-guess';
+elseif ~use_ics_guess % no ics guess
+    guess_tag = '--no-guess';
+end
+%
+
 tauMax = max(tauVector);%%
-runName = strcat('tauMax-',num2str(tauMax),'--kSqMax-',num2str(kSqMax));
+runName = strcat('tauMax-',num2str(tauMax),'--kSqMax-',num2str(kSqMax),...
+    '--',fit_opt,'-opt',guess_tag);
 if isempty(runTag) == 0 % append rep number to end of "runName"
     new_runName = [runName,'--',runTag];  % new run name (with tag)
 else
@@ -49,17 +68,6 @@ runName = new_runName;
 
 movefile(new_jobDir,new_runDir); % move from "queued-jobs" folder
 runDir = [new_runDir,filesep,runName]; % replace runDir definition
-
-% define fit routine
-if any(strcmpi(fit_opt,{'bleach','bleaching','includeBleaching'}))
-    fit_opt = 'bleach';
-elseif any(strcmpi(fit_opt,{'noBleach','noBleaching','weakBleach',...
-        'weakBleaching'}))
-    fit_opt = 'nobleach';
-else
-    error('Unknown fitting routine specified.')
-end
-%
 
 %% load data
 
@@ -87,7 +95,7 @@ saveas(bleach_fig,filename)
 bleach_fit_info.opt_params = p;
 bleach_fit_info.ci = ci;
 
-%% compute kICS autocorr
+%% compute kICS autocorrelation
 
 if redo_kics
     kSqVector = getKSqVector(J);
@@ -127,6 +135,42 @@ if redo_kics
     save(filename,'kSqVector','r_k_abs','r_k_norm'); % save computed kICS ACF
 end
 
+%% plot kICS data
+
+% for consistency 
+kICSCorrSubset = r_k_abs; % corresponding subset of kICS ACF
+
+ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit/theory curves
+
+figure()
+hold on
+box on
+
+% loop and plot over fixed time lag
+color = lines(length(plotTauLags));
+plotLegend = cell(1,length(plotTauLags));
+h_sim_data = zeros(1,length(plotTauLags));
+for tauInd = 1:length(plotTauLags) 
+    % plot heuristic kICS ACF
+    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),...
+        '.','markersize',16,'Color',color(tauInd,:)); 
+    plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
+end
+% labeling
+xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
+ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
+legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
+xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
+ylims = get(gca,'ylim');
+ylim([0 ylims(2)])
+tightfig(gcf) % no white-space (3rd party package; works for release 2015a)
+
+% save plots without fits
+filename = [analysisDir filesep runName '_nofit.fig']; % save figure .fig
+saveas(gcf,filename)
+filename = [analysisDir filesep runName '_nofit.pdf']; % save figure .pdf
+saveas(gcf,filename)
+
 %% ICS for guesses
 
 if use_ics_guess
@@ -158,9 +202,6 @@ if use_ics_guess
 end
 
 %% kICS fitting
-
-% for convention
-kICSCorrSubset = r_k_abs; % corresponding subset of kICS ACF
 
 T = length(session_info.tRange);
 
@@ -231,39 +272,6 @@ disp(num2str(inv(hessian)))
 kics_fit_info.opt_params = opt_params;
 kics_fit_info.err_min = err_min;
 kics_fit_info.hessian = hessian;
-
-%% plot kICS data
-
-ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot); % |k|^2 for plotting best fit/theory curves
-
-figure()
-hold on
-box on
-
-% loop and plot over fixed time lag
-color = lines(length(plotTauLags));
-plotLegend = cell(1,length(plotTauLags));
-h_sim_data = zeros(1,length(plotTauLags));
-for tauInd = 1:length(plotTauLags) 
-    % plot heuristic kICS ACF
-    h_sim_data(tauInd) = plot(kSqVectorSubset,kICSCorrSubset(:,tauInd),...
-        '.','markersize',16,'Color',color(tauInd,:)); 
-    plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
-end
-% labeling
-xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
-ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
-legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
-xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
-ylims = get(gca,'ylim');
-ylim([0 ylims(2)])
-tightfig(gcf) % no white-space (3rd party package; works for release 2015a)
-
-% save plots without fits
-filename = [analysisDir filesep runName '_nofit.fig']; % save figure .fig
-saveas(gcf,filename)
-filename = [analysisDir filesep runName '_nofit.pdf']; % save figure .pdf
-saveas(gcf,filename)
 
 %% plot best fit curves
 
