@@ -1,4 +1,4 @@
-% Written by S.S.
+% Written by Simon Sehayek
 %
 % This function is meant to take an image series and calculate its normalized 
 % kICS autocorrelation function.

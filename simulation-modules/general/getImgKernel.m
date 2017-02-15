@@ -1,4 +1,5 @@
-% credit to H.B.B.
+% created by Simon Sehayek
+% credit to Hugo B. Brandao
 %
 % this function outputs the psf kernel of a molecule located at pos
 % (format: [pos_y,pos_x]), in an image series with spatial dimensions
