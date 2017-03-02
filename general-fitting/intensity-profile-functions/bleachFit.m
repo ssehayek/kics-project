@@ -13,7 +13,8 @@ for i = 1:length(varargin)
         end
     elseif any(strcmpi(varargin{i},{'fitOffset','offset'}))
         fit_offset = 1;
-        if isnumeric(varargin{i+1}) && any(varargin{i+1}==[0,1])
+        if length(varargin) >= i+1 && isnumeric(varargin{i+1}) && ...
+                any(varargin{i+1}==[0,1])
             fit_offset = varargin{i+1};
         end
     elseif any(strcmpi(varargin{i},'showFig'))
@@ -21,7 +22,7 @@ for i = 1:length(varargin)
     end
 end
 
-t = 1:size(J,3); % all frame indices
+t = 0:size(J,3)-1; % all frame indices
 I_t = squeeze(mean(mean(J,1),2)); % mean intensity trace
 
 % bleaching profile for single decay rate model
@@ -30,13 +31,13 @@ I_t = squeeze(mean(mean(J,1),2)); % mean intensity trace
 % p(3): noise term
 %
 if fit_offset
-    bleach_profile = @(p,t) p(1)*exp(-p(2)*(t+1)) + p(3);
+    bleach_profile = @(p,t) p(1)*exp(-p(2)*t) + p(3);
 else
-    bleach_profile = @(p,t) p(1)*exp(-p(2)*(t+1));
+    bleach_profile = @(p,t) p(1)*exp(-p(2)*t);
 end
 %
 
-getBleachGuess(J,'offset',fit_offset)
+[x0,lb,ub] = getBleachGuess(J,'offset',fit_offset);
 
 % p = lsqcurvefit(bleach_profile,x0,t',I_t,lb,ub); % LSF
 [p,~,resid,~,~,~,jacobian] = lsqcurvefit(bleach_profile,x0,t',I_t,lb,ub); % LSF
