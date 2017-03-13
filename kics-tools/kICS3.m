@@ -17,16 +17,20 @@
 % and cross-correlation theorem).
 % https://www.mathworks.com/help/signal/ug/linear-and-circular-convolution.html.
 %
-function [r_k_norm] = kICS3(J,varargin)
+function [phi_k] = kICS3(J,varargin)
 
 % time lag to normalize by
-normByLag = 0;
+norm_lag = 0;
 % logical for normalization (0 will normalize)
-noNorm = 0;
+no_norm = 0;
 % use Wiener-Khinchin theorem; note this technically should
 % not be used for non-stationary processes in time (e.g.
 % photobleaching)
 use_WKT = 1;
+% determines whether to subtract by the temporal mean of the image series.
+% Note that subtracting by the spatial mean would leave the spatial Fourier
+% transform unchanged
+use_time_fluct = 0;
 % extend images periodically in an even manner. This is recommended when
 % the data is not intrinsically periodic across its boundaries (e.g. real
 % data). Note using discrete cosine transform (DCT) is equivalent to this
@@ -36,13 +40,23 @@ force_even = 0;
 
 for i = 1:length(varargin)
     if any(strcmpi(varargin{i},{'normByLag','normalizeByLag','normalizeByNthLag','tauLagNorm'}))
-        if isnumeric(varargin{i+1})
-            normByLag = varargin{i+1};
+        if isnumeric(varargin{i+1}) && any(varargin{i+1} == [0,1])
+            norm_lag = varargin{i+1};
         elseif any(strcmpi(varargin{i+1},{'none','noNorm'}))
-            noNorm = 1;
+            no_norm = 1;
+        else
+            warning(['Unknown option for ''',varargin{i},...
+                ''', using default options.'])
         end
     elseif any(strcmpi(varargin{i},{'useWKT','WKT'}))
-        use_WKT = varargin{i+1};
+        if isnumeric(varargin{i+1}) && any(varargin{i+1} == [0,1])
+            use_WKT = varargin{i+1};
+        else
+            warning(['Unknown option for ''',varargin{i},...
+                ''', using default options.'])            
+        end
+    elseif any(strcmpi(varargin{i},{'useTimeFluct','subTempMean','subMean'}))
+        use_time_fluct = 1;
     elseif any(strcmpi(varargin{i},{'even','forceEven','mirrorMovie'}))
         force_even = 1;
     end
@@ -51,6 +65,10 @@ end
 size_y = size(J,1);
 size_x = size(J,2); % note inverted order definition of x and y
 T = size(J,3);
+
+if use_time_fluct % subtract by temporal mean
+    J = J-repmat(mean(J,3),[1,1,size(J,3)]);
+end
 
 if force_even
     J_mirror=[J,fliplr(J(:,1:end-1,:));flipud(J(1:end-1,1:end-1,:)),rot90(J(1:end-1,:,:),2)];
@@ -77,12 +95,13 @@ else
     end
 end
 
-r_k_norm = zeros(size(J_k)); % array to store kICS ACF
+% shift (kx,ky)=(0,0) lag to be in center
 for tau = 0:T-1
     r_k(:,:,tau+1) = 1/(T-tau)*fftshift(r_k(:,:,tau+1));
-    if ~noNorm
-        r_k_norm(:,:,tau+1) = r_k(:,:,tau+1)./r_k(:,:,normByLag+1); % normalization
-    else % don't normalize
-        r_k_norm = r_k;
-    end
+end
+
+if ~no_norm % normalize
+    phi_k = r_k./r_k(:,:,norm_lag+1); 
+else % don't normalize
+    phi_k = r_k;
 end
