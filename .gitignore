@@ -10,4 +10,4 @@
 *.nb
 *.mat
 
-# hide untracked files for now
+*.out
