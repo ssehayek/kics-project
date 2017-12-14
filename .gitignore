@@ -4,6 +4,8 @@
 *.rtf
 *.png
 
+issues/
+
 # matlab/mathematica associations
 *.fig
 !movieplayer.fig
