@@ -19,6 +19,8 @@ for ii = 1:2:length(varargin)
         if isnumeric(varargin{ii+1}) && 0 <= varargin{ii+1} <= 1
             off_int_frac = varargin{ii+1};
         end
+    else
+        warning(['Unknown varargin input ''',varargin{ii},'''.'])
     end
 end
 
