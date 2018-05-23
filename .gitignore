@@ -5,6 +5,7 @@
 *.png
 
 issues/
+atp-release/local/logfiles
 
 # matlab/mathematica associations
 *.fig
@@ -12,4 +13,12 @@ issues/
 *.nb
 *.mat
 
+# user-defined
 *.out
+
+# dropbox associations
+*.ini
+.dropbox
+
+# latex associations
+*.gz
