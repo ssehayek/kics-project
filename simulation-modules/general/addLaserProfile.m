@@ -35,8 +35,8 @@ end
 % center pixel of I
 [ctr_pxl_y,ctr_pxl_x] = getCtrPxl(I);
 % 
-xgv = (0:size(I,2)-1)-ctr_pxl_x;
-ygv = (0:size(I,1)-1)-ctr_pxl_y;
+xgv = (1:size(I,2))-ctr_pxl_x;
+ygv = (1:size(I,1))-ctr_pxl_y;
 % 
 [X,Y] = meshgrid(xgv,ygv);
 
