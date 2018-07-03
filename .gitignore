@@ -6,6 +6,8 @@
 
 issues/
 atp-release/local/logfiles
+alias-project/testing-codes
+atp-release/
 
 # matlab/mathematica associations
 *.fig
