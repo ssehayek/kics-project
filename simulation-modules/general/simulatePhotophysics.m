@@ -70,41 +70,44 @@ obs_state = double(obs_state);
 obs_state(obs_state == 0) = off_int_frac;
 %
 
+% random numbers for state switching
+r = rand(N,total_T-1);
+% cumulative probabilities given initial photo-state is 1
+c_1 = cumsum(p(:,1));
+% initial photo-state is 2
+c_2 = cumsum(p(:,2));
 for t = 2:total_T
-    for i = 1:N
-        r = rand();
-        if photo_state(i,t-1) == 1 % if previous state is on
-            c = cumsum(p(:,1));
-            j = find(c > r,1,'first');
-            if j == 1 % j is next state
-                % on -> on
-                photo_state(i,t) = 1;
-                obs_state(i,t) = 1;
-            elseif j == 2
-                % on -> off
-                photo_state(i,t) = 2;
-                obs_state(i,t) = off_int_frac;
-            elseif j == 3
-                % on -> bleach
-                % no change in observed state, since it is initialized as 0
-                photo_state(i,t) = 3;
-            end
-        elseif photo_state(i,t-1) == 2 % if previous state is off
-            c = cumsum(p(:,2));
-            j = find(c > r,1,'first');
-            if j == 1
-                % off -> on
-                photo_state(i,t) = 1;
-                obs_state(i,t) = 1;
-            elseif j == 2
-                % off -> off
-                photo_state(i,t) = 2;
-                obs_state(i,t) = off_int_frac;
-            elseif j == 3
-                % off -> bleach
-                photo_state(i,t) = 3;
-            end
-        end
-    end
+    % photo-states at t-1
+    prev_photo_state = photo_state(:,t-1);
+    % indices for which initial photo-state is 1 at t-1
+    prev_state_1_inds = find(prev_photo_state == 1);
+    % indices for which initial photo-state is 2 at t-1
+    prev_state_2_inds = find(prev_photo_state == 2);
+    % corresponding random numbers at these indices which will determine
+    % next state
+    r_state_1 = r(prev_state_1_inds,t-1);
+    r_state_2 = r(prev_state_2_inds,t-1);
+    
+    % indices for which next state will be 1
+    next_state_1_inds = union(prev_state_1_inds(c_1(1) > r_state_1),...
+        prev_state_2_inds(c_2(1) > r_state_2));
+    % indices for which next state will be 2
+    next_state_2_inds = union(prev_state_1_inds(c_1(1) < r_state_1 & c_1(2) > r_state_1),...
+        prev_state_2_inds(c_2(1) < r_state_2 & c_2(2) > r_state_2));
+    
+    % photo-states at t (all particles initialized as bleached)
+    next_photo_state = photo_state(:,t);
+    % assign next photo-states to corresponding indices
+    next_photo_state(next_state_1_inds) = 1;
+    next_photo_state(next_state_2_inds) = 2;
+    % 
+    photo_state(:,t) = next_photo_state;
+    
+    % observed states at t (all particles initialized as bleached)
+    next_obs_state = obs_state(:,t);
+    % assign next observed states to corresponding indices
+    next_obs_state(next_state_1_inds) = 1;
+    next_obs_state(next_state_2_inds) = off_int_frac;
+    %
+    obs_state(:,t) = next_obs_state;
 end
-
