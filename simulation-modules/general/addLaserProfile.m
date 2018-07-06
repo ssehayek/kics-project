@@ -18,14 +18,17 @@ for ii = 1:length(varargin)
     if any(strcmpi(varargin{ii},{'laserWidth','laserRadius'}))
         if isnumeric(varargin{ii+1}) && varargin{ii+1} >= 0
             w = varargin{ii+1};
+        elseif strcmpi(varargin{ii+1},'default')
+            w = Inf;
         else
             warning(['Unknown option for ''',varargin{ii},...
                 ''', using default options.'])
         end
     elseif any(strcmpi(varargin{ii},{'laserShift'}))
         if length(varargin{ii+1}) == 2 && all(isnumeric(varargin{ii+1}))
-            X0 = varargin{ii+1}(1);
-            Y0 = varargin{ii+1}(2);
+            X0 = varargin{ii+1}(1); Y0 = varargin{ii+1}(2);
+        elseif strcmpi(varargin{ii+1},'default')
+            X0 = 0; Y0 = 0;
         else
             warning(['Unknown option for ''',varargin{ii},...
                 ''', using default options.'])
