@@ -1,4 +1,4 @@
-function [photo_state,obs_state] = simulatePhotophysics(N,total_T,...
+function [photo_state_rearr,obs_state_rearr] = simulatePhotophysics(N,total_T,...
     dt,k_on,k_off,k_p,varargin)
 
 blink_model = 'twoStateBleach';
@@ -110,4 +110,18 @@ for t = 2:total_T
     next_obs_state(next_state_2_inds) = off_int_frac;
     %
     obs_state(:,t) = next_obs_state;
+end
+
+%%% added 2018-07-16; incompatible with older codes
+%%%
+% number of frames after time-integration
+T = total_T*dt;
+% number of sub-frames per frame
+sub_frames = 1/dt;
+% rearrange state arrays into more convenient form
+obs_state_rearr = zeros(N,T,sub_frames);
+photo_state_rearr = zeros(N,T,sub_frames);
+for t = 1:T
+    obs_state_rearr(:,t,:) = obs_state(:,(t-1)*sub_frames+1:t*sub_frames);
+    photo_state_rearr(:,t,:) = photo_state(:,(t-1)*sub_frames+1:t*sub_frames);
 end
