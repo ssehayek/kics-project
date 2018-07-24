@@ -1,5 +1,5 @@
-function [photo_state_rearr,obs_state_rearr] = simulatePhotophysics(N,total_T,...
-    dt,k_on,k_off,k_p,varargin)
+function [photo_state_rearr,obs_state_rearr,tint_obs_state] = ...
+    simulatePhotophysics(N,total_T,dt,k_on,k_off,k_p,varargin)
 
 blink_model = 'twoStateBleach';
 off_int_frac = 0;
@@ -112,6 +112,8 @@ for t = 2:total_T
     obs_state(:,t) = next_obs_state;
 end
 
+%% time-integrated observed states
+
 %%% added 2018-07-16; incompatible with older codes
 %%%
 % number of frames after time-integration
@@ -125,3 +127,11 @@ for t = 1:T
     obs_state_rearr(:,t,:) = obs_state(:,(t-1)*sub_frames+1:t*sub_frames);
     photo_state_rearr(:,t,:) = photo_state(:,(t-1)*sub_frames+1:t*sub_frames);
 end
+
+% time-integrated observed particle state
+% useful for later image series construction
+tint_obs_state = sum(obs_state_rearr,3);
+% permute dimensions for later multiplication with img_kernel_stat
+tint_obs_state = permute(tint_obs_state,[2,3,1]);
+%
+%%%
