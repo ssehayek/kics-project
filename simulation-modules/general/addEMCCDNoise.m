@@ -28,10 +28,10 @@
 % correlation spectroscopy, Biophys. J, 80:2987-99
 
 
-% USAGE: 
-% imageSeries: [x y t] dimensional image series array*
-% gain: emccd camera gain 
-% avgPhotons: mean number of arriving photons (lambda) to detector per sec
+% USAGE:
+% J: [x y t] dimensional image series array*
+% gain: emccd camera gain
+% avg_photons: mean number of arriving photons (lambda) to detector per sec
 % stdIntenisty: calculated by sqrt(2 g^2 avgPhotons)
 % adf: analogue to digital conversion factor 
 
@@ -39,39 +39,52 @@
 % *Assuming input simulation imageSeries shows the spatial probability of
 % photon arrival (e.g. drawn from a normal distribution)
 % ***An assumption made here is that the probability of detecting zero or
-% negative values of electrons is negligible (i.e. lambda >> 1). 
+% negative values of electrons is negligible (i.e. lambda >> 1).
 
+function noisyImageSeries = addEMCCDNoise(J,varargin)
 
-function noisyImageSeries = addEMCCDNoise(imageSeries,gain,avgPhotons,...
-            quantumYield,clockInducedCharge,darkCurrent,exposuretime,adf,readOutNoise)
-if(~exist('gain','var'))
-    gain = 164; % set default gain 
-end
-if(~exist('avgPhotons','var'))
-    avgPhotons = 1e5; % (default) avg # photons/ sec / molecule
-end
-if(~exist('sdtIntensity','var')) % this is used if we don't assume (***)
-    readOutNoise = 54;%sqrt(2*gain^2*avgPhotons); % default standard error
-end
-if(~exist('adf','var'))
-    adf = 12; % default analogue to digital conversion
-end
-if(~exist('quantumYield','var'))
-    quantumYield = 0.9; % default analogue to digital conversion
-end
-if(~exist('clockInducedCharge','var'))
-    clockInducedCharge = 12; % baseline minimum spurious charge # electrons
-end
-if(~exist('darkCurrent','var'))
-    darkCurrent = 0.0023; % electrons / pixel / second (dark current)
-end
-if(~exist('exposuretime','var'))
-    exposuretime = 2e-3; % default exposure time
+% gain
+gain = 164;
+% avg # photons/sec/molecule
+avg_photons = 1e3;
+%sqrt(2*gain^2*avgPhotons); % default standard error
+read_noise = 54;
+% analogue to digital conversion
+adf = 12;
+% detector quantum efficiency
+q_yield = 0.9;
+% baseline minimum spurious charge # electrons
+cic_charge = 12;
+% electrons/pixel/second (dark current)
+dark_current = 0.008;
+% exposure time
+exposure_time = 0.05;
+% if(~exist('stdIntensity','var')) % this is used if we don't assume (***)
+%     readOutNoise = 54;%sqrt(2*gain^2*avgPhotons); % default standard error
+% end
+for ii = 1:2:length(varargin)
+    if strcmpi(varargin{ii+1},'gain')
+        gain = varargin{ii+1};
+    elseif strcmpi(varargin{ii+1},'avgPhotons')
+        avg_photons = varargin{ii+1};
+    elseif strcmpi(varargin{ii+1},'readNoise','readOutNoise')
+        read_noise = varargin{ii+1};
+    elseif strcmpi(varargin{ii+1},'adf')
+        adf = varargin{ii+1};
+    elseif strcmpi(varargin{ii+1},'qYield','quantumYield')
+        q_yield = varargin{ii+1};
+    elseif strcmpi(varargin{ii+1},'CIC','clockInducedCharge')
+        cic_charge = varargin{ii+1};
+    elseif strcmpi(varargin{ii+1},'darkCurrent')
+        dark_current = varargin{ii+1};
+    elseif strcmpi(varargin{ii+1},'intTime','exposureTime')
+        exposure_time = varargin{ii+1};
+    end
 end
 
 
 % compute the average number of input electrons detected by emccd per pixel
-lambda = (avgPhotons*quantumYield*imageSeries + darkCurrent)*exposuretime + clockInducedCharge; 
+lambda = (avg_photons*q_yield*J + dark_current)*exposure_time + cic_charge;
 
 % degOfFreedom = 4;
 % 
@@ -86,13 +99,10 @@ nie = round(poissrnd(lambda)); % number of input electrons to EM register
 noe = gamrnd(nie,gain); % number of output electrons from EM register 
 
 % Readout contribution to noise
-nread = noe + readOutNoise*randn(size(noe)); 
+nread = noe + read_noise*randn(size(noe));
 
 % shift negative values to zero
 nread(nread<=0) = 0; 
 
 % Convert final number of "output electrons" to image counts + discretize
-noisyImageSeries = floor(nread/adf); 
-
-
-end
+noisyImageSeries = floor(nread/adf);
