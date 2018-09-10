@@ -35,56 +35,78 @@
 % stdIntenisty: calculated by sqrt(2 g^2 avgPhotons)
 % adf: analogue to digital conversion factor 
 
-% ASSUMPTIONS
-% *Assuming input simulation imageSeries shows the spatial probability of
-% photon arrival (e.g. drawn from a normal distribution)
+% ASSUMPTIONS *Assuming input simulation J shows the spatial probability
+% per molecule of photon arrival (e.g. drawn from a normal distribution)
 % ***An assumption made here is that the probability of detecting zero or
 % negative values of electrons is negligible (i.e. lambda >> 1).
 
-function noisyImageSeries = addEMCCDNoise(J,varargin)
+%%%
+
+% additions by Simon Sehayek
+%
+% INPUT VARIABLES
+%
+% laser_varargin: varargin to pass to addLaserProfile
+function noisyImageSeries = addEMCCDNoise(J,laser_varargin,varargin)
 
 % gain
-gain = 164;
-% avg # photons/sec/molecule
-avg_photons = 1e3;
+gain = 200;
+% avg # photons/sec/molecule (without autofluorescent background)
+avg_photons = 5e3;
 %sqrt(2*gain^2*avgPhotons); % default standard error
-read_noise = 54;
+read_noise = 1;
 % analogue to digital conversion
 adf = 12;
 % detector quantum efficiency
 q_yield = 0.9;
 % baseline minimum spurious charge # electrons
-cic_charge = 12;
+ci_charge = 0.005;
 % electrons/pixel/second (dark current)
 dark_current = 0.008;
 % exposure time
 exposure_time = 0.05;
+% % varargin to pass to addLaserProfile (see code for options)
+% laser_varargin = {};
+% raw background caused by autofluorescence given as fraction of
+% avg_photons
+autofluor_percent = 0.05;
 % if(~exist('stdIntensity','var')) % this is used if we don't assume (***)
 %     readOutNoise = 54;%sqrt(2*gain^2*avgPhotons); % default standard error
 % end
 for ii = 1:2:length(varargin)
-    if strcmpi(varargin{ii+1},'gain')
+    if strcmpi(varargin{ii},'gain')
         gain = varargin{ii+1};
-    elseif strcmpi(varargin{ii+1},'avgPhotons')
+    elseif strcmpi(varargin{ii},'avgPhotons')
         avg_photons = varargin{ii+1};
-    elseif strcmpi(varargin{ii+1},'readNoise','readOutNoise')
+    elseif any(strcmpi(varargin{ii},{'readNoise','readOutNoise'}))
         read_noise = varargin{ii+1};
-    elseif strcmpi(varargin{ii+1},'adf')
+    elseif strcmpi(varargin{ii},'adf')
         adf = varargin{ii+1};
-    elseif strcmpi(varargin{ii+1},'qYield','quantumYield')
-        q_yield = varargin{ii+1};
-    elseif strcmpi(varargin{ii+1},'CIC','clockInducedCharge')
-        cic_charge = varargin{ii+1};
-    elseif strcmpi(varargin{ii+1},'darkCurrent')
-        dark_current = varargin{ii+1};
-    elseif strcmpi(varargin{ii+1},'intTime','exposureTime')
+    elseif any(strcmpi(varargin{ii},{'intTime','exposureTime'}))
         exposure_time = varargin{ii+1};
+    elseif any(strcmpi(varargin{ii},{'qYield','quantumYield'}))
+        q_yield = varargin{ii+1};
+    elseif any(strcmpi(varargin{ii},{'CIC','clockInducedCharge'}))
+        ci_charge = varargin{ii+1};
+    elseif strcmpi(varargin{ii},'darkCurrent')
+        dark_current = varargin{ii+1};
+        %     elseif any(strcmpi(varargin{ii},{'laserVarargin','laserVar'}))
+        %         laser_varargin = varargin{ii+1};
+    elseif any(strcmpi(varargin{ii},{'autofluorPer','autofluorPercent'}))
+        autofluor_percent = varargin{ii+1};
     end
 end
 
+% image series of signal
+J_sig = addLaserProfile(J,laser_varargin{:});
+% image series of autofluorescence
+J_autofluor = addLaserProfile(autofluor_percent*ones(size(J)),laser_varargin{:});
+% image series of raw spatial fluorescence probability per molecule +
+% autofluorescence
+J_raw = J_sig + J_autofluor;
 
 % compute the average number of input electrons detected by emccd per pixel
-lambda = (avg_photons*q_yield*J + dark_current)*exposure_time + cic_charge;
+lambda = (avg_photons*q_yield*J_raw + dark_current)*exposure_time + ci_charge;
 
 % degOfFreedom = 4;
 % 

@@ -11,9 +11,11 @@ function [img_kernel] = getImgKernel(J,pos,w0,varargin)
 
 % default cut-off of non-zero elements in psf
 kernelSize = ceil(3*w0);
-% default: period boundary conditions 
+% default boundary condition
 bound_cond = 'periodic';
-
+% choose to either evaluate psf at a point ('legacy' option) or integrate
+% over psf over pixels ('integrate')
+ker_type = 'legacy';
 for ii = 1:length(varargin)
     % specify cut-off for PSF in kernel (in units of w0)
     if any(strcmpi(varargin{ii},{'kernelSize'}))
@@ -27,6 +29,14 @@ for ii = 1:length(varargin)
             % default
         elseif any(strcmpi(varargin{ii+1},{'hard'}))
             bound_cond = 'hard';
+        else
+            warning(['invalid option for varargin: ',varargin{ii}]);
+        end
+    elseif any(strcmpi(varargin{ii},{'kerType','kernelType'}))
+        if any(strcmpi(varargin{ii+1},{'legacy'}))
+            % default
+        elseif any(strcmpi(varargin{ii+1},{'integrate'}))
+            ker_type = 'integrate';
         else
             warning(['invalid option for varargin: ',varargin{ii}]);
         end
@@ -48,9 +58,20 @@ pos_x = pos(2);
 dy = -round(pos_y)+pos_y; 
 dx = -round(pos_x)+pos_x; 
 
-% gaussian psf form (intensity amplitude set to 1)
-arg = -2*((x-dx).^2 + (y-dy).^2)/w0^2;
-psf_kernel = exp(arg);
+if strcmp(ker_type,'legacy')
+    % gaussian psf form (intensity amplitude set to 1)
+    arg = -2*((x-dx).^2 + (y-dy).^2)/w0^2;
+    psf_kernel = exp(arg);
+else
+    % integrate over gaussian psf (normalized to area 1)
+    %
+    % x-integral
+    x_int = 1/sqrt(8)*(erf(sqrt(2)*(x-1/2-dx)/w0)-erf(sqrt(2)*(x+1/2-dx)/w0));
+    % y-integral
+    y_int = 1/sqrt(8)*(erf(sqrt(2)*(y-1/2-dy)/w0)-erf(sqrt(2)*(y+1/2-dy)/w0));
+    % integrated psf; 2 is normalization factor
+    psf_kernel = 2*x_int.*y_int;
+end
 
 % rounded coordinates of PSF
 ycoor = y + round(pos_y);
