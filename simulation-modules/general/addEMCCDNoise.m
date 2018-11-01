@@ -124,7 +124,7 @@ noe = gamrnd(nie,gain); % number of output electrons from EM register
 nread = noe + read_noise*randn(size(noe));
 
 % shift negative values to zero
-nread(nread<=0) = 0; 
+% nread(nread<=0) = 0; 
 
 % Convert final number of "output electrons" to image counts + discretize
 noisyImageSeries = floor(nread/adf);
