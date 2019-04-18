@@ -7,15 +7,17 @@ s = struct;
 %%% figure properties
 % position units of figure
 s.units = 'inches';
-% width of figure (fixes aspect ratio)
+% boolean for adjusting width
+s.changeFigPos = 1;
+% width of figure
 s.width = 3.25;
 %%% axis properties
 % axis font size
 s.fontSize = 9;
 % axis title font size
-s.titleSize = 11;
+s.titleSize = 9;
 % axis label font size
-s.labelSize = 11;
+s.labelSize = 9;
 % axis legend font size
 s.legSize = 9;
 % box
@@ -30,14 +32,19 @@ end
 
 %% 
 
-% reset figure position to default
-set(h,'Position',get(0,'defaultfigureposition'));
-
-h.Units = s.units;
 % move figure to lower-left of screen
-h.Position(1:2) = [0,0];
-% change width while keeping aspect ratio
-h.Position(3:4) = s.width*h.Position(3:4)/h.Position(3);
+if s.changeFigPos
+    % reset figure position to default
+    set(h,'Position',get(0,'defaultfigureposition'));
+    
+    h.Units = s.units;
+    h.Position(1:2) = [0,0];
+    % change width while keeping aspect ratio
+    h.Position(3:4) = s.width*h.Position(3:4)/h.Position(3);
+end
+h.PaperPositionMode = 'auto';
+paper_pos = h.PaperPosition;
+h.PaperSize = [paper_pos(3) paper_pos(4)];
 
 AxList = findall(h,'type','axes');
 for iAx = 1:length(AxList)
@@ -51,6 +58,8 @@ for iAx = 1:length(AxList)
         ax.Legend.FontSize = s.legSize;
     end
     ax.Box = s.box;
+    % fixes conversion from char array to cell array
+%     fixAxesScale(ax);
 end
 
-tightfig(h)
+% tightfig(h)
