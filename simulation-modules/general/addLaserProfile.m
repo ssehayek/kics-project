@@ -4,6 +4,12 @@
 %
 % I: image series to overlay laser profile
 %
+% OUTPUT
+%
+% J: image series with overlaid laser profile
+% I: original input image series
+% laser_profile: J = I.*laser_profile
+%
 % VARARGIN (if no options are input, this code does nothing)
 %
 % - choose e^(-2) radius of laser profile

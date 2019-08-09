@@ -3,21 +3,53 @@
 %
 % this function outputs the psf kernel of a molecule located at pos
 % (format: [pos_y,pos_x]), in an image series with spatial dimensions
-% specified by "J", with e-2 radius of w0 (assumes gaussian psf).
+% specified by input variable J, with e-2 radius of w0 (assumes gaussian psf).
 %
-% assumes image series is spatially periodic.
+% INPUT VARIABLES
+%
+%   J: image series
+%   pos: position of molecule (format: [pos_y,pos_x])
+%   w0: Gaussian PSF e-2 radius
+%
+% OUTPUT VARIABLES
+%
+%   img_kernel: PSF kernel of molecule with position pos
+%
+% VARARGIN (NAME/VALUE PAIRS)
+%
+% 'boundCond'
+% -------------------------------------------------------------------------
+% 'hard' (default) | 'periodic'
+% -------------------------------------------------------------------------
+% Specifies boundary condition at edges. 'hard' means the PSF does not go
+% beyond the edges of the image; 'periodic' means the part of the PSF
+% exceeding the image boundaries appears on the opposite side of the image
+%
+% 'kernelSize'
+% -------------------------------------------------------------------------
+% ceil(3*w0) (default) | cell-array
+% -------------------------------------------------------------------------
+% Specifies cut-off for PSF in kernel (in units of w0)
+%
+% 'kerType'
+% -------------------------------------------------------------------------
+% 'integrate' (default) | 'legacy'
+% -------------------------------------------------------------------------
+% Specifies PSF. 'integrate' means the relative intensity value in each
+% pixel is the result of integrating the PSF along pixel widths; 'legacy'
+% means the relative intensity value in each pixel is taken to be the value
+% of the PSF at the center of the respective pixel
 %
 function [img_kernel] = getImgKernel(J,pos,w0,varargin)
 
 % default cut-off of non-zero elements in psf
 kernelSize = ceil(3*w0);
 % default boundary condition
-bound_cond = 'periodic';
+bound_cond = 'hard';
 % choose to either evaluate psf at a point ('legacy' option) or integrate
 % over psf over pixels ('integrate')
-ker_type = 'legacy';
+ker_type = 'integrate';
 for ii = 1:length(varargin)
-    % specify cut-off for PSF in kernel (in units of w0)
     if any(strcmpi(varargin{ii},{'kernelSize'}))
         if isnumeric(varargin{ii+1}) && varargin{ii+1} > 0
             kernelSize = ceil(varargin{ii+1}*w0);
@@ -26,17 +58,17 @@ for ii = 1:length(varargin)
         end
     elseif any(strcmpi(varargin{ii},{'boundCond'}))
         if any(strcmpi(varargin{ii+1},{'periodic'}))
-            % default
+            bound_cond = 'periodic';
         elseif any(strcmpi(varargin{ii+1},{'hard'}))
-            bound_cond = 'hard';
+            % default
         else
             warning(['invalid option for varargin: ',varargin{ii}]);
         end
     elseif any(strcmpi(varargin{ii},{'kerType','kernelType'}))
         if any(strcmpi(varargin{ii+1},{'legacy'}))
-            % default
+            ker_type = 'legacy';
         elseif any(strcmpi(varargin{ii+1},{'integrate'}))
-            ker_type = 'integrate';
+            % default
         else
             warning(['invalid option for varargin: ',varargin{ii}]);
         end
