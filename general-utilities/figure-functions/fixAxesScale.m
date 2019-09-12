@@ -1,6 +1,7 @@
 function [] = fixAxesScale(ax,varargin)
 
 method = 'none';
+ax2change = 'both';
 for i = 1:2:length(varargin)
     if strcmpi(varargin{i},'method')
         % method used for generating new ticks
