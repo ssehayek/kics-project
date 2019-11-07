@@ -24,3 +24,8 @@ atp-release/
 
 # latex associations
 *.gz
+
+# obsolete codes/testing codes/codes not being used now
+alias-project/compilers/*
+alias-project/kics-fitting/*
+general-utilities/miscellaneous/progBarPar.m
