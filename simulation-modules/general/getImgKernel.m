@@ -19,11 +19,12 @@
 %
 % 'boundCond'
 % -------------------------------------------------------------------------
-% 'hard' (default) | 'periodic'
+% 'none' (default) | 'periodic'
 % -------------------------------------------------------------------------
-% Specifies boundary condition at edges. 'hard' means the PSF does not go
-% beyond the edges of the image; 'periodic' means the part of the PSF
-% exceeding the image boundaries appears on the opposite side of the image
+% Specifies boundary condition at edges. 'none' means the part of the PSF
+% exceeding the image edges is "lost"; 'periodic' means the part of
+% the PSF exceeding the image edges appears on the opposite side of
+% the image
 %
 % 'kernelSize'
 % -------------------------------------------------------------------------
@@ -40,17 +41,26 @@
 % means the relative intensity value in each pixel is taken to be the value
 % of the PSF at the center of the respective pixel
 %
-function [img_kernel] = getImgKernel(J,pos,w0,varargin)
+function [psf_kernel,xcoor,ycoor] = getImgKernel(J,pos,w0,varargin)
 
+% determines whether output should be compatible with parallel image
+% construction
+parallel = 0;
 % default cut-off of non-zero elements in psf
 kernelSize = ceil(3*w0);
 % default boundary condition
-bound_cond = 'hard';
+bound_cond = 'none';
 % choose to either evaluate psf at a point ('legacy' option) or integrate
 % over psf over pixels ('integrate')
 ker_type = 'integrate';
-for ii = 1:length(varargin)
-    if any(strcmpi(varargin{ii},{'kernelSize'}))
+for ii = 1:2:length(varargin)
+    if any(strcmpi(varargin{ii},{'parallel'}))
+        if isscalar(varargin{ii+1}) && any(varargin{ii+1}==[0,1])
+            parallel = varargin{ii+1};
+        else
+            warning(['invalid option for varargin: ',varargin{ii}]);
+        end
+    elseif any(strcmpi(varargin{ii},{'kernelSize'}))
         if isnumeric(varargin{ii+1}) && varargin{ii+1} > 0
             kernelSize = ceil(varargin{ii+1}*w0);
         else
@@ -59,7 +69,7 @@ for ii = 1:length(varargin)
     elseif any(strcmpi(varargin{ii},{'boundCond'}))
         if any(strcmpi(varargin{ii+1},{'periodic'}))
             bound_cond = 'periodic';
-        elseif any(strcmpi(varargin{ii+1},{'hard'}))
+        elseif any(strcmpi(varargin{ii+1},{'none'}))
             % default
         else
             warning(['invalid option for varargin: ',varargin{ii}]);
@@ -72,6 +82,8 @@ for ii = 1:length(varargin)
         else
             warning(['invalid option for varargin: ',varargin{ii}]);
         end
+    else
+        warning(['unknown varargin input ''',varargin{ii},'''.'])
     end
 end
 
@@ -90,10 +102,12 @@ pos_x = pos(2);
 dy = -round(pos_y)+pos_y; 
 dx = -round(pos_x)+pos_x; 
 
-if strcmp(ker_type,'legacy')
-    % gaussian psf form (intensity amplitude set to 1)
+if w0 == 0
+    psf_kernel = 1;
+elseif strcmp(ker_type,'legacy')
+    % gaussian psf form (normalized to area 1)
     arg = -2*((x-dx).^2 + (y-dy).^2)/w0^2;
-    psf_kernel = exp(arg);
+    psf_kernel = pi*omega^2/2*exp(arg);
 else
     % integrate over gaussian psf (normalized to area 1)
     %
@@ -109,13 +123,6 @@ end
 ycoor = y + round(pos_y);
 xcoor = x + round(pos_x);
 
-% set negligible elements of PSF profile to 0
-nonZeroEl = find(psf_kernel);
-
-psf_kernel = psf_kernel(nonZeroEl);
-ycoor = ycoor(nonZeroEl);
-xcoor = xcoor(nonZeroEl);
-
 if strcmp(bound_cond,'periodic')
     % get coordinates subject to periodic boundary conditions
     %
@@ -126,6 +133,14 @@ if strcmp(bound_cond,'periodic')
     % for MATLAB indexing convention
     xcoor(xcoor==0) = size_x;
     ycoor(ycoor==0) = size_y;
+    if ~parallel
+        % vectorize psf coords
+        xcoor = xcoor(1,:);
+        ycoor = ycoor(:,1)';
+    else
+        % embed kernel in rest of image
+        psf_kernel = full(sparse(ycoor,xcoor,psf_kernel,size_y,size_x));
+    end
 else
     % find kernel positions which exceed boundary and crop them out
     %
@@ -136,9 +151,18 @@ else
     % cropping
     ycoor(crop_coors) = [];
     xcoor(crop_coors) = [];
-    psf_kernel(crop_coors) = [];
+    if ~parallel
+        % vectorize psf coords
+        xcoor = unique(xcoor);
+        ycoor = unique(ycoor);
+        % reduce size of psf_kernel accordingly with cropping
+        ker_rows = any(~crop_coors,2);
+        ker_cols = any(~crop_coors,1);
+        psf_kernel = psf_kernel(ker_rows,ker_cols);
+    else
+        % reduce size of psf_kernel accordingly with cropping (vectorized)
+        psf_kernel(crop_coors) = [];
+        % embed kernel in rest of image
+        psf_kernel = full(sparse(ycoor,xcoor,psf_kernel,size_y,size_x));
+    end
 end
-
-% embed kernel in rest of image
-% img_kernel = full(sparse(ycoor,xcoor,psf_kernel(nonZeroEl),size_y,size_x));
-img_kernel = full(sparse(ycoor,xcoor,psf_kernel,size_y,size_x));
