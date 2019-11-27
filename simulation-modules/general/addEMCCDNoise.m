@@ -70,6 +70,8 @@ exposure_time = 0.05;
 % raw background caused by autofluorescence given as fraction of
 % avg_photons
 autofluor_percent = 0.05;
+% max value over all psf kernels for scaling autofluorescent background
+max_kernel = 1;
 % if(~exist('stdIntensity','var')) % this is used if we don't assume (***)
 %     readOutNoise = 54;%sqrt(2*gain^2*avgPhotons); % default standard error
 % end
@@ -94,13 +96,15 @@ for ii = 1:2:length(varargin)
         %         laser_varargin = varargin{ii+1};
     elseif any(strcmpi(varargin{ii},{'autofluorPer','autofluorPercent'}))
         autofluor_percent = varargin{ii+1};
+    elseif any(strcmpi(varargin{ii},{'maxKernel'}))
+        max_kernel = varargin{ii+1};
     end
 end
 
 % image series of signal
 J_sig = addLaserProfile(J,laser_varargin{:});
 % image series of autofluorescence
-J_autofluor = addLaserProfile(autofluor_percent*ones(size(J)),laser_varargin{:});
+J_autofluor = addLaserProfile(max_kernel*autofluor_percent*ones(size(J)),laser_varargin{:});
 % image series of raw spatial fluorescence probability per molecule +
 % autofluorescence
 J_raw = J_sig + J_autofluor;
