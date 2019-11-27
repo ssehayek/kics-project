@@ -6,30 +6,39 @@
 % INPUT
 % arr: vector to be split
 % n_parts: request number of parts vector to be partitioned into
-% 
+%
+% OPTIONAL 
+%
+% isarr: boolean for treating arr as array (if not 1, it can be treated as
+%        a scalar)
+%
 % OUTPUT
 % arr_parts: cell containing the segmented vector parts
-% n_parts: number of parts arr was split into (arr might be split into 
+% n_parts: number of parts arr was split into (arr might be split into
 % n_parts-1, instead of n_parts)
 %
-function [arr_parts,n_parts] = partitionArr(arr,n_parts)
+function [arr_parts,n_parts] = partitionArr(arr,n_parts,isarr)
+
+switch nargin
+    case 2
+        isarr = 0;
+end
 
 % numel is used to generalize function for an array
-switch isscalar(arr)
-    case 0 
-        % arr is array
-        n = numel(arr);
-    otherwise
-        % if positive scalar integer, n, was input for arr, turn it into an
-        % array so that arr(1)=1 and arr(end)=n
-        n = arr;
-        arr = 1:n;
+if isscalar(arr) == 0 || isarr == 1
+    % arr is array
+    n = numel(arr);
+else
+    % if positive scalar integer, n, was input for arr, turn it into an
+    % array so that arr(1)=1 and arr(end)=n
+    n = arr;
+    arr = 1:n;
 end
-    
+
 r1 = mod(n,n_parts);
 switch r1
     % check if n is divisible by n_parts
-    case 0 
+    case 0
         % arr is split into n_parts equal parts
         n_rows = n/n_parts;
         % each column of eq_vecs is an equal partition of arr
@@ -42,7 +51,7 @@ switch r1
         r2 = mod(n,n_parts-1);
         switch r2
             % check if n is divisible by n_parts-1
-            case 0 
+            case 0
                 % arr is split into n_parts-1 equal parts
                 warning(['array was partitioned into ',num2str(n_parts-1),...
                     ' parts, instead of ',num2str(n_parts),'.'])
