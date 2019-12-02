@@ -4,11 +4,6 @@
 *.rtf
 *.png
 
-issues/
-atp-release/local/logfiles
-alias-project/testing-codes
-atp-release/
-
 # matlab/mathematica associations
 *.fig
 !movieplayer.fig
@@ -28,4 +23,11 @@ atp-release/
 # obsolete codes/testing codes/codes not being used now
 alias-project/compilers/*
 alias-project/kics-fitting/*
+alias-project/testing-codes/*
 general-utilities/miscellaneous/progBarPar.m
+
+# completed projects
+atp-release/
+
+# miscellaneous
+issues/
