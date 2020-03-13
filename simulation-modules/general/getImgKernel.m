@@ -45,7 +45,7 @@ function [psf_kernel,xcoor,ycoor] = getImgKernel(J,pos,w0,varargin)
 
 % determines whether output should be compatible with parallel image
 % construction
-parallel = 0;
+legacy = 0;
 % default cut-off of non-zero elements in psf
 kernelSize = ceil(3*w0);
 % default boundary condition
@@ -54,9 +54,9 @@ bound_cond = 'none';
 % over psf over pixels ('integrate')
 ker_type = 'integrate';
 for ii = 1:2:length(varargin)
-    if any(strcmpi(varargin{ii},{'parallel'}))
+    if any(strcmpi(varargin{ii},{'legacy'}))
         if isscalar(varargin{ii+1}) && any(varargin{ii+1}==[0,1])
-            parallel = varargin{ii+1};
+            legacy = varargin{ii+1};
         else
             warning(['invalid option for varargin: ',varargin{ii}]);
         end
@@ -107,7 +107,7 @@ if w0 == 0
 elseif strcmp(ker_type,'legacy')
     % gaussian psf form (normalized to area 1)
     arg = -2*((x-dx).^2 + (y-dy).^2)/w0^2;
-    psf_kernel = pi*omega^2/2*exp(arg);
+    psf_kernel = pi*w0^2/2*exp(arg);
 else
     % integrate over gaussian psf (normalized to area 1)
     %
@@ -133,7 +133,7 @@ if strcmp(bound_cond,'periodic')
     % for MATLAB indexing convention
     xcoor(xcoor==0) = size_x;
     ycoor(ycoor==0) = size_y;
-    if ~parallel
+    if ~legacy
         % vectorize psf coords
         xcoor = xcoor(1,:);
         ycoor = ycoor(:,1)';
@@ -151,7 +151,7 @@ else
     % cropping
     ycoor(crop_coors) = [];
     xcoor(crop_coors) = [];
-    if ~parallel
+    if ~legacy
         % vectorize psf coords
         xcoor = unique(xcoor);
         ycoor = unique(ycoor);
