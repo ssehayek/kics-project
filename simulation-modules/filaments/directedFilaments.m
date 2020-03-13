@@ -19,12 +19,12 @@
 %
 % Issues: Square array input
 %         There's an obvious discretization problem - rand() now multiplies
-%           incrementing unit vector (fixed?)
+%           incrementing unit vector (fix?)
 %         (Size of particles array)
-function [filaments,particles] = directedFilaments(sz,M,pr,varargin)
+function [filaments,particles,N_imm] = directedFilaments(sz,M,pr,varargin)
 %
 
-mean_theta = pi*rand(); % randomly generated mean angle of filament. 
+mean_theta = pi*rand(); % randomly generated mean angle of filament.
 std_theta = pi/50; % standard deviation of Gaussian dist for drawing filament angles
 for i = 1:length(varargin)
     if any(strcmpi(varargin{i},{'MeanTheta','MeanAngle','MeanFilamentAngle'})) && isnumeric(varargin{i+1}) && 0 < varargin{i+1} < pi
@@ -61,7 +61,7 @@ for i = 1:M % loop over filament index
     line_positions(i,2) = p(2);
     if rand()<pr
         particles.position(j,:) = [line_positions(i,1),line_positions(i,2)];
-        particles.angle(j) = mean_theta; 
+        particles.angle(j) = mean_theta;
         j = j+1;
     end
     
@@ -97,15 +97,16 @@ for i = 1:M % loop over filament index
 end
 particles.position = particles.position(any(particles.position,2),:); % Remove all zero rows
 particles.angle = particles.angle(any(particles.angle,2));
+N_imm = size(particles.position,1);
 
-% figure() % show filaments
-% colormap(pink)
-% imagesc(filaments)
+figure() % show filaments
+colormap(pink)
+imagesc(filaments)
 
-% figure() % show particle positions
-% image = zeros(sz);
-% for i = 1:size(particles.position,1)
-%     image(round(particles.position(i,1)),round(particles.position(i,2))) = 1;
-% end
-% imagesc(image)
-% colormap(pink)
+figure() % show particle positions
+image = zeros(sz);
+for i = 1:size(particles.position,1)
+    image(round(particles.position(i,1)),round(particles.position(i,2))) = 1;
+end
+imagesc(image)
+colormap(pink)

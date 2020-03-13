@@ -1,5 +1,7 @@
-function [ksq_sub,iksq_sub] = getKSqVector(r_k,varargin)
+function [ksq_sub,iksq_sub,lattice_inds] = getKSqVector(r_k,varargin)
 
+ksq_min = 'min';
+ksq_max = 'max';
 for i = 1:length(varargin)
     if strcmpi(varargin{i},{'kSqMin'})
         if isnumeric(varargin{i+1})
@@ -30,39 +32,45 @@ size_x = size(r_k,2);
 % get 1-d vector of corresponding lattice points
 % treat even & odd cases separately
 if mod(size_x,2) == 0
-    xgv = 0:size_x/2;
+    xgv = -size_x/2:size_x/2-1;
 else
-    xgv = 0:(size_x-1)/2;
+    xgv = -(size_x-1)/2:(size_x-1)/2;
 end
 
-if mod(size_y,2) == 0
-    ygv = 0:size_y/2;
+if mod(size_x,2) == 0
+    ygv = -size_y/2:size_y/2-1;
 else
-    ygv = 0:(size_y-1)/2;
+    ygv = -(size_y-1)/2:(size_y-1)/2;
 end
 %
 
 % create xy-lattices
-[X,Y] = meshgrid(xgv,ygv); 
-lattice_sqrd = (X/size_x).^2 + (Y/size_y).^2; % norm squared of lattice
+[X,Y] = meshgrid(xgv,ygv);
+% norm squared of lattice
+lattice_sqrd = (2*pi)^2*((X/size_x).^2 + (Y/size_y).^2);
 % unique values occuring in lattice sorted into vector
-lattice_nums = unique(lattice_sqrd); 
-
-ksq = (2*pi)^2*lattice_nums; % unique |k|^2 values sorted into vector
+ksq = unique(lattice_sqrd);
 
 % lowest index, i, which satisfies kSqVector(i) >= kSqMin
-if exist('ksq_min','var')
-    iksq_min = find(ksq >= ksq_min,1,'first');
-else
+if strcmpi(ksq_min,'min')
     iksq_min = 1;
+    ksq_min = ksq(1);
+else
+    iksq_min = find(ksq >= ksq_min,1,'first');
 end
 %
 % highest index, j, which satisfies kSqVector(j) <= kSqMax
-if exist('ksq_max','var')
-    iksq_max = find(ksq <= ksq_max,1,'last');
-else
+if strcmpi(ksq_max,'max')
     iksq_max = length(ksq);
+    ksq_max = ksq(end);
+else
+    iksq_max = find(ksq <= ksq_max,1,'last');
 end
 %
 ksq_sub = ksq(iksq_min:iksq_max); % all values satisfying kSqMin <= kSqVector <= kSqMax
 iksq_sub = iksq_min:iksq_max; % all indices satisfying kSqMin <= kSqVector(i) <= kSqMax
+
+if nargout == 3
+    % get corresponding lattice indices in the range [ksq_min,ksq_max]
+    lattice_inds = find( lattice_sqrd >= ksq_min & lattice_sqrd <= ksq_max );
+end
