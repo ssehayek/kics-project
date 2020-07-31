@@ -3,31 +3,34 @@
 % boolean for creating simulation with given parameters
 createSim = 1;
 % boolean for fitting the simulation
-fitSim = 1;
+fitSim = 0;
 
 %% SAVE DIRECTORIES
 
 % save directory
-base_dir = 'C:\Users\Simon\Dropbox (Wiseman Research)\research-projects\kics-project';
+base_dir = 'C:\Users\Simon\Dropbox (Wiseman Research)\research-projects\kics-project\';
 
-% boolean for saving simulation
-save_sim = 1;
-% simulation file name
-save_simfile = [base_dir,filesep,'sim',filesep,'sim'];
+% simulation file tag
+sim_tag = 'dendritic-cell';
+
+% % boolean for saving simulation
+% save_sim = 1;
+% % simulation file name
+% save_simfile = [base_dir,filesep,'sim',filesep,'sim'];
 
 % boolean for saving analysis
-save_run = 0;
-% analysis file name
-save_runpath = [base_dir,filesep,'run'];
-% directory for analysis saving
-analysis_runpath = [save_runpath,filesep,'analysis'];
+% save_run = 0;
+% % analysis file name
+% save_runpath = [base_dir,filesep,'run'];
+% % directory for analysis saving
+% analysis_runpath = [save_runpath,filesep,'analysis'];
 
 %% SIMULATION PARAMETERS
 
 % main parameters
 %
 % size of image series in pixels (sz x sz)
-sz = 64;
+sz = 128;
 % number of frames
 T = 2048;
 % number of subframes per frame to emulate detector time-integration
@@ -35,15 +38,18 @@ n_sub_frames = 50;
 % PSF e-2 radius (pixels)
 w0 = 3;
 % number of diffusing particles
-N_diff = 500;
+N_diff = [];
+% fraction of diffusing particles to immobile ones; this overrides the
+% value for N_diff, unless it is left empty
+frac_diff = 0.3;
 % diffusion coefficient
-D = 1;
+D = 3;
 % blinking on-rate (frames^-1)
-k_on = 0.5;
+k_on = 0.4;
 % blinking off-rate (frames^-1)
-k_off = 0.4;
+k_off = 0.5;
 % bleaching rate (frames^-1)
-k_p = 5e-4;
+k_p = 1e-4;
 
 % aggregate parameters
 %
@@ -52,13 +58,29 @@ mean_agg_num = 2;
 % standard deviation of position from aggregate center
 std_agg_dist = 0.1;
 
-% filament parameters
+%%% IMMOBILE PARTICLE DISTRIBUTION
+%
+% FILAMENTS
 %
 % number of filaments
 num_filaments = 20;
 % probability of placing particles along filaments (prob for particles to
 % be placed every rand() along filament)
-prob_place = 0;
+prob_place = 0.3;
+%
+% MASK
+%
+% logical for using mask option (overrides filament options); mask must be
+% a logical array with dimensions sz x sz; particles are distributed
+% uniformly over area where mask == 1
+use_mask = 0;
+% if using mask, specify path to mask file; mask file must contain a
+% logical array called "mask"
+mask_filepath = 'C:\Users\Simon\Dropbox (Wiseman Research)\research-projects\kics-project\data\mask_128x128.mat';
+% number of immobile particles to distribute in mask
+N_imm = 5000;
+%
+%%%
 
 % enter "twoStateBleach" (default), or "offStateBleach"
 blink_model = 'twoStateBleach';
@@ -130,7 +152,7 @@ output_mins = 0;
 tauVector = [1:5];
 kSqMin = 0.01;
 % put 'max' to fit entire range
-kSqMax = 1.2;
+kSqMax = 1.8;
 
 % Format [D,k_on,k_off,diff_frac]
 params_guess = [rand rand rand rand];

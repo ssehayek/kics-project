@@ -59,17 +59,26 @@ function [J,true_params] = kicsSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
 % num_filaments = 20;
 % prob_place = 0.3;
 % std_agg_dist = 1/10; % default standard deviation of aggregates' distance from initially placed particle
+frac_diff = [];
 doSimulatePhotophysics = 1;
 blink_model = 'twoStateBleach';
 off_int_frac = 0;
 n_sub_frames = 1;
 save_run = 0;
 use_parallel = 0;
+use_mask = 0;
 kernel_varargin = {};
 laser_varargin = {};
 noise_varargin = {};
 for n = 1:2:length(varargin)
-    if any(strcmpi(varargin{n},{'parallel','useParallel'}))
+    if any(strcmpi(varargin{n},{'fracDiff','fractionDiff',...
+            'fractionDiffusing'}))
+        if isnumeric(varargin{n+1}) == 1
+            frac_diff = varargin{n+1};
+        else
+            warning(['invalid option for varargin: ',varargin{n}]);
+        end
+    elseif any(strcmpi(varargin{n},{'parallel','useParallel'}))
         if length(varargin{n+1}) == 1 && any(varargin{n+1} == [0,1])
             use_parallel = varargin{n+1};
         else
@@ -120,6 +129,17 @@ for n = 1:2:length(varargin)
             warning(['Unknown option for ''',varargin{n},...
                 ''', using default options.'])
         end
+    elseif any(strcmpi(varargin{n},{'mask','useMask'}))
+        if isstruct(varargin{n+1}) && numel(fieldnames(varargin{n+1})) == 3
+            mask_struct = varargin{n+1};
+            
+            use_mask = mask_struct.use_mask;
+            mask_filepath = mask_struct.mask_filepath;
+            N_imm = mask_struct.N_imm;
+        else
+            warning(['Unknown option for ''',varargin{n},...
+                ''', using default options.'])
+        end
     elseif any(strcmpi(varargin{n},{'kernelVarargin','kernelVar','kerVar'}))
         if iscell(varargin{n+1})
             kernel_varargin = varargin{n+1};
@@ -160,13 +180,25 @@ tic
 % aggregation state
 particles = struct('immobile',struct,'diffusing',struct);
 
-% filament structure
-[filaments,agg_pos] = directedFilaments(sz,num_filaments,prob_place);
-% initial diffusing particle positions
-particles.diffusing.position(:,:,1) = generatePositions(N_diff,sz,w0);
+% immobile particle distribution
+if use_mask
+    % mask distribution
+    load(mask_filepath,'mask')
+    agg_pos.position = generateMaskPositions(N_imm,mask,w0);
+else
+    % filament structure
+    [filaments,agg_pos] = directedFilaments(sz,num_filaments,prob_place);
+end
 % generate aggregates on filament structure
 [particles.immobile,imm_positions,N_imm] = generateAggPositions(agg_pos.position,...
     mean_agg_num,std_agg_dist);
+% initial diffusing particle positions
+if ~isempty(frac_diff)
+    % use frac_diff to determine N_diff
+    N_diff = round(frac_diff./(1-frac_diff).*N_imm);
+end
+% use N_diff to determine number of diffusing particles
+particles.diffusing.position(:,:,1) = generatePositions(N_diff,sz,w0);
 %
 toc
 
@@ -358,7 +390,7 @@ tic
 %
 clear photo_state obs_state imm_tint_obs_state J_temp diff_obs_state ...
     diff_positions psf_kernel_imm
-true_params = [D,k_on,k_off,N_diff/N];
+true_params = [D,k_on./(k_on+k_off),k_on+k_off,N_diff/N];
 % prevent double saving of noiseless movies
 if all(J_sig(:) == J(:))
     clear J_sig
