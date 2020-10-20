@@ -105,36 +105,34 @@ bleach_fit_info.ci = ci;
 
 %% compute kICS autocorr
 
-kSqVector = getKSqVector(J);
-[kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMin',kSqMin,'kSqMax',kSqMax);
-
 %
 tic
 
 % kICS autocorrelation function (ACF)
 r_k = kICS(J,'normByLag','none');
 
-r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
+% r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
 
 r_k_0_sub = kICSSubNoise(r_k,ksq_min_noise,ksq_max_noise);
-if do_interp
-    n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
-    r_k_0_circ = ellipticInterp(r_k_0_sub,kSqVectorSubset,n_theta_arr);
-    
-    r_k_tau = r_k(:,:,tauVector+1);
-    parfor tau_i = 1:length(tauVector)
-        r_k_circ(:,tau_i) = ellipticInterp(r_k_tau(:,:,tau_i),kSqVectorSubset,n_theta_arr);
-    end
-    delete(gcp)
-else
-    r_k_0_circ_uncut = circular(r_k_0_sub(:,:,1));
-    r_k_0_circ = r_k_0_circ_uncut(kSqSubsetInd,1);
-    
-    r_k_circ_uncut = circular(r_k(:,:,tauVector+1));
-    r_k_circ = r_k_circ_uncut(kSqSubsetInd,:);
-end
-% normalization
-r_k_norm = abs(r_k_circ)./abs(r_k_0_circ);
+% if do_interp
+%     n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
+%     r_k_0_circ = ellipticInterp(r_k_0_sub,kSqVectorSubset,n_theta_arr);
+%     
+%     r_k_tau = r_k(:,:,tauVector+1);
+%     parfor tau_i = 1:length(tauVector)
+%         r_k_circ(:,tau_i) = ellipticInterp(r_k_tau(:,:,tau_i),kSqVectorSubset,n_theta_arr);
+%     end
+%     delete(gcp)
+% else
+r_k_0_circ = circular(r_k_0_sub(:,:,1));
+r_k_circ = circular(r_k);
+% r_k_0_circ = r_k_0_circ(kSqSubsetInd,1);
+
+% r_k_circ_uncut = circular(r_k(:,:,tauVector+1));
+% r_k_circ = r_k_circ(kSqSubsetInd,:);
+% end
+% % normalization
+% r_k_norm = abs(r_k_circ)./abs(r_k_0_circ);
 % r_k_norm = real(r_k_circ./r_k_0_circ(1,1));
 
 toc
@@ -148,6 +146,26 @@ toc
 
 %% plot simulation data
 
+%%% cut acf
+%
+% get and cut |k|^2 vector
+[kSqVector,kSqInd] = getKSqVector(J);
+[kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMin',kSqMin,'kSqMax',kSqMax);
+% [kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMax',kSqMax);
+
+% cut autocorrelation
+r_k_circ_cut = r_k_circ(kSqSubsetInd,tauVector+1);
+% cut normalization
+r_k_0_circ_cut = r_k_0_circ(kSqSubsetInd,1);
+
+% normalization
+% r_k_norm = abs(r_k_circ_cut)./abs(r_k_0_circ_cut);
+r_k_norm = real(r_k_circ_cut./r_k_0_circ_cut);
+%
+%%%
+
+[~,plot_idx] = ismember(plotTauLags,tauVector);
+
 % |k|^2 for plotting best fit/theory curves
 ksq2plot = linspace(kSqVectorSubset(1),kSqVectorSubset(end),nPtsFitPlot);
 
@@ -159,13 +177,13 @@ color = lines(length(plotTauLags));
 plotLegend = cell(1,length(plotTauLags));
 h_sim_data = zeros(1,length(plotTauLags));
 for tauInd = 1:length(plotTauLags) % loop and plot over fixed time lag
-    h_sim_data(tauInd) = plot(kSqVectorSubset,r_k_norm(:,tauInd),...
-        '.','markersize',16,'Color',color(tauInd,:)); % plot simulated kICS ACF
+    h_sim_data(tauInd) = plot(kSqVectorSubset,r_k_norm(:,plot_idx(tauInd)),...
+        '.','markersize',10,'Color',color(tauInd,:)); % plot simulated kICS ACF
     plotLegend{tauInd} = ['$\tau = ' num2str(plotTauLags(tauInd)) '$'];
 end
 % labeling
-xlabel('$|\mathbf{k}|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
-ylabel('$\phi(|\mathbf{k}|^2,\tau)$','interpreter','latex','fontsize',14)
+xlabel('$|${\boldmath$k$}$|^2$ (pixels$^{-2}$)','interpreter','latex','fontsize',14)
+ylabel('$\tilde{\Phi}(|${\boldmath$k$}$|^2,\tau)$','interpreter','latex','fontsize',14)
 legend(h_sim_data,plotLegend,'fontsize',12,'interpreter','latex')
 xlim([kSqVectorSubset(1) kSqVectorSubset(end)])
 ylims = get(gca,'ylim');
@@ -189,28 +207,28 @@ tightfig(gcf)
 % err = @(params) kICSSlideWinImmBleachFit(params,kSqVectorSubset,tauVector,k_p,T,101,...
 %     'err',r_k_norm,'symvars',{''});
 % fit_fun = @(params,ksq,tau) kICSSlideWinImmBleachFit(params,ksq,tau,k_p,T,101,'symvars',{''});
-err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
-    'err',r_k_norm,'symvars',{''});
-fit_fun = @(params,ksq,tau) timeIntkICSFit(params,ksq,tau,'symvars',{''});
+% err = @(params) timeIntkICSFit(params,kSqVectorSubset,tauVector,...
+%     'err',r_k_norm,'symvars',{''});
+% fit_fun = @(params,ksq,tau) timeIntkICSFit(params,ksq,tau,'symvars',{''});
 % err = @(params) timeIntkICSBleachFit(params,kSqVectorSubset,tauVector,k_p_fit,T,...
 %     'err',r_k_norm,'symvars',{''});
 % fit_fun = @(params,ksq,tau) timeIntkICSBleachFit(params,ksq,tau,k_p,T,'symvars',{''});
 % err = @(params) kICSSlideWinFullFit(params,kSqVectorSubset,tauVector,201,w0,...
 %     'err',r_k_norm,'symvars',{''});
 % fit_fun = @(params,ksq,tau) kICSSlideWinFullFit(params,ksq,tau,201,w0,'symvars',{''});
-% err = @(params) kICSSlideWinFit(params,kSqVectorSubset,tauVector,k_p_fit,T,51,...
+% err = @(params) kICSSlideWinFit(params,kSqVectorSubset,tauVector,k_p_fit,T,201,...
 %     'err',r_k_norm,'symvars',{''});
-% fit_fun = @(params,ksq,tau) kICSSlideWinFit(params,ksq,tau,k_p,T,51,'symvars',{''});
+% fit_fun = @(params,ksq,tau) kICSSlideWinFit(params,ksq,tau,k_p,T,201,'symvars',{''});
 
-% err = @(params) kICSDiff3D(params,kSqVectorSubset,tauVector,...
+% err = @(params) kICSDiff3D([params(1:4),z0],kSqVectorSubset,tauVector,...
 %     'err',r_k_norm,'symvars',{''});
-% fit_fun = @(params,ksq,tau) kICSDiff3D(params,ksq,tau,'symvars',{''});
-% err = @(params) timeIntkICS3DFit(params,kSqVectorSubset,tauVector,...
+% fit_fun = @(params,ksq,tau) kICSDiff3D([params(1:4),z0],ksq,tau,'symvars',{''});
+err = @(params) timeIntkICS3DFit([params(1:4),z0],kSqVectorSubset,tauVector,...
+    'err',r_k_norm,'symvars',{''});
+fit_fun = @(params,ksq,tau) timeIntkICS3DFit([params(1:4),z0],ksq,tau,'symvars',{''});
+% err = @(params) kICSAnomDiff3D([params(1:4),z0,params(5)],kSqVectorSubset,tauVector,...
 %     'err',r_k_norm,'symvars',{''});
-% fit_fun = @(params,ksq,tau) timeIntkICS3DFit(params,ksq,tau,'symvars',{''});
-% err = @(params) kICSAnomDiff3D(params,kSqVectorSubset,tauVector,...
-%     'err',r_k_norm,'symvars',{''});
-% fit_fun = @(params,ksq,tau) kICSAnomDiff3D(params,ksq,tau,'symvars',{''});
+% fit_fun = @(params,ksq,tau) kICSAnomDiff3D([params(1:4),z0,params(5)],ksq,tau,'symvars',{''});
 
 % time-int theory
 %
@@ -291,7 +309,7 @@ if fitSim
     for tauInd = 1:length(plotTauLags)
         % plot best fit kICS ACF
         plot(ksq2plot,fit_fun(opt_params,ksq2plot,plotTauLags(tauInd)),...
-            'Color',color(tauInd,:),'LineWidth',2)
+            'Color',color(tauInd,:),'LineWidth',1.2)
     end
     tightfig(gcf)
     
