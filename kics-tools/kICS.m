@@ -34,6 +34,9 @@ use_WKT = 1;
 % Note that subtracting by the spatial mean would leave the spatial Fourier
 % transform unchanged
 use_time_fluct = 1;
+% determines whether to subtract by the local temporal mean of the image
+% series using a temporal window that starts at each respective time point
+time_win = 0;
 % extend images periodically in an even manner. This is recommended when
 % the data is not intrinsically periodic across its boundaries (e.g. real
 % data). Note using discrete cosine transform (DCT) is equivalent to this
@@ -72,6 +75,17 @@ for ii = 1:2:length(varargin)
             warning(['Unknown option for ''',varargin{ii},...
                 ''', using default options.'])
         end
+    elseif any(strcmpi(varargin{ii},{'timeWindow','timeWin','window'}))
+        if isnumeric(varargin{ii+1}) && varargin{ii+1} > 0 && ...
+                length(varargin{ii+1})<=2
+            % set windowing boolean to 1
+            time_win = 1;
+            % window size specification
+            win_k = varargin{ii+1};
+        else
+            warning(['Unknown option for ''',varargin{ii},...
+                ''', using default options.'])
+        end
     elseif any(strcmpi(varargin{ii},{'even','forceEven','mirrorMovie'}))
         force_even = 1;
     else
@@ -87,15 +101,23 @@ size_y = size(J,1);
 size_x = size(J,2); % note inverted order definition of x and y
 T = size(J,3);
 
-if use_time_fluct % subtract by temporal mean
-    J = J-repmat(mean(J,3),[1,1,size(J,3)]);
+if use_time_fluct && ~time_win
+    % subtract by temporal mean
+    J_fluct = J-repmat(mean(J,3),[1,1,size(J,3)]);
+elseif time_win
+    % subtract by local temporal mean
+    J_fluct = J-movmean(J,[0,win_k],3);
+else
+    % no fluctuations
+    J_fluct = J;
 end
 
 if force_even
-    J_mirror=[J,fliplr(J(:,1:end-1,:));flipud(J(1:end-1,1:end-1,:)),rot90(J(1:end-1,:,:),2)];
+    J_mirror=[J_fluct,fliplr(J_fluct(:,1:end-1,:));...
+        flipud(J_fluct(1:end-1,1:end-1,:)),rot90(J_fluct(1:end-1,:,:),2)];
     J_k = fft2(J_mirror);
 else
-    J_k = fft2(J); % Fourier transform image series (space)
+    J_k = fft2(J_fluct); % Fourier transform image series (space)
 end
 
 if use_WKT

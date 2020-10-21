@@ -2,6 +2,7 @@ function [ksq_sub,iksq_sub,lattice_inds] = getKSqVector(r_k,varargin)
 
 ksq_min = 'min';
 ksq_max = 'max';
+use_zero = 0;
 for i = 1:length(varargin)
     if strcmpi(varargin{i},{'kSqMin'})
         if isnumeric(varargin{i+1})
@@ -17,6 +18,13 @@ for i = 1:length(varargin)
             ksq_max = varargin{i+1};
         elseif strcmpi(varargin{i+1},'max')
             % do nothing; max set by default
+        else
+            warning(['Unknown option for '' ',varargin{i},...
+                ''', using default options.'])
+        end
+    elseif strcmpi(varargin{i},{'useZero','includeZero'})
+        if isnumeric(varargin{ii+1}) && any(varargin{ii+1} == [0,1])
+            use_zero = varargin{i+1};
         else
             warning(['Unknown option for '' ',varargin{i},...
                 ''', using default options.'])
@@ -73,4 +81,12 @@ iksq_sub = iksq_min:iksq_max; % all indices satisfying kSqMin <= kSqVector(i) <=
 if nargout == 3
     % get corresponding lattice indices in the range [ksq_min,ksq_max]
     lattice_inds = find( lattice_sqrd >= ksq_min & lattice_sqrd <= ksq_max );
+end
+
+if use_zero == 0 && ksq_sub(1) == 0
+    ksq_sub(1) = [];
+    iksq_sub(1) = [];
+    if nargout == 3
+        lattice_inds(1) = [];
+    end
 end
