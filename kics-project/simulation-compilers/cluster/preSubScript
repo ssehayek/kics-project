@@ -1,0 +1,61 @@
+#!/bin/bash
+
+Q_TYPE="condor" # input either "condor" or "torque"
+
+########### INPUT VARIABLES ###################
+
+# These variables don't need to be updated in either inputPhaseSpaceVars.m, or submitMatlabJob
+
+CODEPATH="/media/3TB-GPU-Drive/simon.sehayek/research-projects/code" # folder containing all codes (recursive)
+BASEDIR="/media/3TB-GPU-Drive/simon.sehayek/research-projects/kics-reboot" # folder for storing the runs
+
+###############################################
+
+# date tag
+DATETAG=$(date +"%Y-%m-%d-%Hh%Mm%Ss")
+
+# temporary job directory
+TMPDIR="${BASEDIR}/queued-jobs/${DATETAG}/"
+
+mkdir -p "${TMPDIR}"
+
+cd "${BASEDIR}"
+
+sed -i '/code_path/c\code_path = '\'"${CODEPATH}"\'';' analysisInput.m
+sed -i '/tmp_dir/c\tmp_dir = '\'"${TMPDIR}"\'';' analysisInput.m
+sed -i '/base_dir/c\base_dir = '\'"${BASEDIR}"\'';' analysisInput.m
+
+sed -i '/TMPDIR=/c\TMPDIR='\""${TMPDIR}"\"'' submitMatlabJob
+#sed -i '/CODEPATH=/c\CODEPATH='\""${CODEPATH}"\"'' submitMatlabJob
+sed -i '/DATETAG=/c\DATETAG='\""${DATETAG}"\"'' submitMatlabJob
+
+cp analysisInput.m "${TMPDIR}"
+cp submitMatlabJob "${TMPDIR}"
+
+#mv -t "${TMPDIR}" outputfile errorfile
+
+if [[ "$Q_TYPE" == "condor" ]]
+then 
+	cp condor_script "${TMPDIR}"	
+fi
+
+cd "${TMPDIR}"
+
+### SUBMIT JOB TO QUEUE
+
+if [[ "$Q_TYPE" == "torque" ]]
+then	
+	qsub -V \
+		-o outputfile \
+		-e errorfile \
+		-l h_rt=24:00:00 \
+		-cwd \
+		-N "simon_job" \
+		-m e \
+		-M "${USER}@gmail.com" \
+		"submitMatlabJob.mv"
+		
+	rm submitMatlabJob.mv
+else 
+	condor_submit condor_script
+fi

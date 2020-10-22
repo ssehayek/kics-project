@@ -1,0 +1,8 @@
+executable 		= 	submitMatlabJob
+universe 		= 	vanilla
+
+output 			=	outputfile
+error			=	errorfile
+log				=	logfile
+
+Queue
