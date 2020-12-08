@@ -22,8 +22,8 @@ for i = 1:length(varargin)
             warning(['Unknown option for '' ',varargin{i},...
                 ''', using default options.'])
         end
-    elseif strcmpi(varargin{i},{'useZero','includeZero'})
-        if isnumeric(varargin{ii+1}) && any(varargin{ii+1} == [0,1])
+    elseif any(strcmpi(varargin{i},{'useZero','includeZero'}))
+        if isnumeric(varargin{i+1}) && any(varargin{i+1} == [0,1])
             use_zero = varargin{i+1};
         else
             warning(['Unknown option for '' ',varargin{i},...

@@ -66,6 +66,9 @@ off_int_frac = 0;
 n_sub_frames = 1;
 save_run = 0;
 use_parallel = 0;
+% determines periodic saving of diffusion positions
+n_parts = 1;
+noise_type = '';
 use_mask = 0;
 kernel_varargin = {};
 laser_varargin = {};
@@ -120,6 +123,13 @@ for n = 1:2:length(varargin)
             warning(['Unknown option for ''',varargin{n},...
                 ''', using default options.'])
         end
+    elseif any(strcmpi(varargin{n},{'nParts','numParts'}))
+        if isnumeric(varargin{n+1}) && floor(varargin{n+1}) == varargin{n+1}
+            n_parts = varargin{n+1};
+        else
+            warning(['Unknown option for ''',varargin{n},...
+                ''', using default options.'])
+        end
     elseif any(strcmpi(varargin{n},{'noiseType','noise'}))
         if any(strcmpi(varargin{n+1},{'emccd'}))
             noise_type = 'emccd';
@@ -164,6 +174,20 @@ for n = 1:2:length(varargin)
     end
 end
 
+% setting up save directory/file
+if save_run
+    [save_dir,~,save_ext] = fileparts(savepath);
+    % prepend current directory path if savepath empty
+    if isempty(save_dir)
+        savepath = [cd,filesep,savepath];
+    end
+    % append default extension '.mat' to savepath if empty
+    if isempty(save_ext)
+        savepath = [savepath,'.mat'];
+    end
+    %
+end
+
 % total number of frames (including sub frames)
 total_T = n_sub_frames*T;
 % interval between sub frames
@@ -198,7 +222,7 @@ if ~isempty(frac_diff)
     N_diff = round(frac_diff./(1-frac_diff).*N_imm);
 end
 % use N_diff to determine number of diffusing particles
-particles.diffusing.position(:,:,1) = generatePositions(N_diff,sz,w0);
+init_diff_positions = generatePositions(N_diff,sz,w0);
 %
 toc
 
@@ -237,17 +261,6 @@ end
 %
 toc
 
-%% diffusion position update
-
-disp('simulating diffusion')
-
-tic
-particles.diffusing.position = simulateDiffusion(N_diff,D,...
-    particles.diffusing.position(:,:,1),total_T,sub_time);
-diff_positions = particles.diffusing.position;
-%
-toc
-
 %% image series creation (immobile)
 
 disp('placing immobile particles')
@@ -258,21 +271,28 @@ tic
 J_imm = zeros(sz,sz,T);
 
 % get dye PSF arrays and corresponding positions
-if use_parallel
-    % array for storing PSFs
-    psf_kernel_imm = zeros(sz,sz,N_imm);
-    for n = 1:N_imm
-        psf_kernel_imm(:,:,n) = ...
-            getImgKernel(J_imm,imm_positions(n,:),w0,'legacy',...
-            use_parallel,kernel_varargin{:});
-    end
-else
-    kernel_info = cell(1,N_imm);
-    for n = 1:N_imm
-        [kernel_info{n}.psf_kernel,kernel_info{n}.xcoor,kernel_info{n}.ycoor] = ...
-            getImgKernel(J_imm,imm_positions(n,:),w0,'legacy',...
-            use_parallel,kernel_varargin{:});
-    end
+% if use_parallel
+%     % array for storing PSFs
+%     psf_kernel_imm = zeros(sz,sz,N_imm);
+%     for n = 1:N_imm
+%         psf_kernel_imm(:,:,n) = ...
+%             getImgKernel(J_imm,imm_positions(n,:),w0,'legacy',...
+%             use_parallel,kernel_varargin{:});
+%     end
+% else
+%     kernel_info = cell(1,N_imm);
+%     for n = 1:N_imm
+%         [kernel_info{n}.psf_kernel,kernel_info{n}.xcoor,kernel_info{n}.ycoor] = ...
+%             getImgKernel(J_imm,imm_positions(n,:),w0,'legacy',...
+%             use_parallel,kernel_varargin{:});
+%     end
+% end
+
+% cell array for storing PSFs
+kernel_info = cell(1,N_imm);
+for n = 1:N_imm
+    [kernel_info{n}.psf_kernel,kernel_info{n}.xcoor,kernel_info{n}.ycoor] = ...
+        getImgKernel(J_imm,imm_positions(n,:),w0,kernel_varargin{:});
 end
 %
 
@@ -280,35 +300,54 @@ end
 imm_tint_obs_state = tint_obs_state(:,:,N_diff+1:end);
 
 % construct immobile image series
-if use_parallel
-    for t = 1:T
-        % find indices of particles that are not off for the whole frame t
-        on_inds = find(imm_tint_obs_state(t,1,:));
-        % multiply emitting dyes by their respective time-integrated
-        % photostate
-        obs_kernel_stat = imm_tint_obs_state(t,1,on_inds).*sub_time.*...
-            psf_kernel_imm(:,:,on_inds);
+for t = 1:T
+    % find indices of particles that are not off for the whole frame t
+    on_inds = find(imm_tint_obs_state(t,1,:))';
+    for n = on_inds
+        % PSF coordinates of nth dye
+        xcoor_n = kernel_info{n}.xcoor;
+        ycoor_n = kernel_info{n}.ycoor;
+        % corresponding PSF values
+        psf_kernel_imm_n = kernel_info{n}.psf_kernel;
         % time-integrated image at time t
-        J_imm(:,:,t) = sum(obs_kernel_stat,3);
-    end
-    delete(gcp)
-else
-    for t = 1:T
-        % find indices of particles that are not off for the whole frame t
-        on_inds = find(imm_tint_obs_state(t,1,:))';
-        for n = on_inds
-            % PSF coordinates of nth dye
-            xcoor_n = kernel_info{n}.xcoor;
-            ycoor_n = kernel_info{n}.ycoor;
-            % corresponding PSF values
-            psf_kernel_imm_n = kernel_info{n}.psf_kernel;
-            % time-integrated image at time t
-            J_imm(ycoor_n,xcoor_n,t) = J_imm(ycoor_n,xcoor_n,t) + ...
-                imm_tint_obs_state(t,1,n).*sub_time.*psf_kernel_imm_n;
-        end
+        J_imm(ycoor_n,xcoor_n,t) = J_imm(ycoor_n,xcoor_n,t) + ...
+            imm_tint_obs_state(t,1,n).*sub_time.*psf_kernel_imm_n;
     end
 end
 %
+
+% % construct immobile image series
+% if use_parallel
+%     for t = 1:T
+%         % find indices of particles that are not off for the whole frame t
+%         on_inds = find(imm_tint_obs_state(t,1,:));
+%         % multiply emitting dyes by their respective time-integrated
+%         % photostate
+%         obs_kernel_stat = imm_tint_obs_state(t,1,on_inds).*sub_time.*...
+%             psf_kernel_imm(:,:,on_inds);
+%         % time-integrated image at time t
+%         J_imm(:,:,t) = sum(obs_kernel_stat,3);
+%     end
+% else
+%     for t = 1:T
+%         % find indices of particles that are not off for the whole frame t
+%         on_inds = find(imm_tint_obs_state(t,1,:))';
+%         for n = on_inds
+%             % PSF coordinates of nth dye
+%             xcoor_n = kernel_info{n}.xcoor;
+%             ycoor_n = kernel_info{n}.ycoor;
+%             % corresponding PSF values
+%             psf_kernel_imm_n = kernel_info{n}.psf_kernel;
+%             % time-integrated image at time t
+%             J_imm(ycoor_n,xcoor_n,t) = J_imm(ycoor_n,xcoor_n,t) + ...
+%                 imm_tint_obs_state(t,1,n).*sub_time.*psf_kernel_imm_n;
+%         end
+%     end
+% end
+% %
+
+clear imm_tint_obs_state
+
 toc
 
 %% image series creation (diffusing)
@@ -320,55 +359,137 @@ tic
 % array to store noiseless image series of diffusing particles
 J_diff = zeros(sz,sz,T);
 
-% observed photostates of diffusing dyes at each sub frame
-diff_obs_state = obs_state(1:N_diff,:,:);
+% split frames into subsets so that diff_positions can be saved and cleared
+% periodically
+[T_parts,n_parts] = partitionArr(T,n_parts);
 
-if use_parallel
-    % initialize array for parfor loop purposes
-    J_temp = J_diff;
-    parfor t = 1:T
-        for n = 1:N_diff
-            % observed states of particle n at time t over all sub frames
-            diff_obs_state_n_t = diff_obs_state(n,t,:);
-            % isolate 
-            on_inds = find(diff_obs_state_n_t ~= 0)';
-            diff_positions_n_t = squeeze(diff_positions(n,:,t,:));
-            for i_on = on_inds
-                diff_psf_kernel_temp = ...
-                    getImgKernel(J_temp,diff_positions_n_t(:,i_on),...
-                    w0,'legacy',use_parallel,kernel_varargin{:});
-                
-                % time-integrated image at time t
-                diff_kernel = diff_obs_state_n_t(i_on).*sub_time.*...
-                    diff_psf_kernel_temp;
-                J_diff(:,:,t) = J_diff(:,:,t) + diff_kernel;
+if save_run
+    % open new matfile for saving diffusing positions
+    m = matfile([save_dir,filesep,'diff_positions.mat'],'Writable',true);
+    % initialize diff_positions
+    m.diff_positions = zeros(N_diff,2,T,n_sub_frames);
+end
+
+for p = 1:n_parts
+    % split arrays into parts for periodic saving/clearing
+    %
+    % vector of frames in subset p
+    T_vec_p = T_parts{p};
+    % number of frames in subset p
+    T_p = length(T_vec_p);
+    
+    % slice variables for parfor
+    %
+    J_diff_p = J_diff(:,:,T_vec_p);
+    % observed photostates of diffusing dyes at each sub frame
+    diff_obs_state_p = obs_state(1:N_diff,T_vec_p,:);
+    % generate diff_positions with chosen n_parts
+    [diff_positions_p,next_diff_position] = simulateDiffusion(N_diff,D,...
+        init_diff_positions,T_p*n_sub_frames,sub_time);
+    if n_sub_frames ~= 1
+        %%% if using subframes
+        if use_parallel
+            % initialize array for parfor loop purposes
+            J_temp = J_diff_p;
+            parfor t = 1:T_p
+                for n = 1:N_diff
+                    % observed states of particle n at time t over all sub frames
+                    diff_obs_state_n_t = diff_obs_state_p(n,t,:);
+                    % get indices of sub frames where particle is emitting
+                    on_inds = find(diff_obs_state_n_t ~= 0)';
+                    diff_positions_n_t = squeeze(diff_positions_p(n,:,t,:));
+                    for i_on = on_inds
+                        diff_psf_kernel_temp = ...
+                            getImgKernel(J_temp,diff_positions_n_t(:,i_on),...
+                            w0,'legacy',use_parallel,kernel_varargin{:});
+                        
+                        % time-integrated image at time t
+                        diff_kernel = diff_obs_state_n_t(i_on).*sub_time.*...
+                            diff_psf_kernel_temp;
+                        J_diff_p(:,:,t) = J_diff_p(:,:,t) + diff_kernel;
+                    end
+                end
+            end
+        else
+            for t = 1:T_p
+                for n = 1:N_diff
+                    diff_obs_state_n_t = diff_obs_state_p(n,t,:);
+                    on_inds = find(diff_obs_state_n_t ~= 0)';
+                    diff_positions_n_t = squeeze(diff_positions_p(n,:,t,:));
+                    for i_on = on_inds
+                        [diff_psf_kernel_temp,xcoor_temp,ycoor_temp] = ...
+                            getImgKernel(J_diff_p,diff_positions_n_t(:,i_on),...
+                            w0,'legacy',use_parallel,kernel_varargin{:});
+                        
+                        % time-integrated image at time t
+                        J_diff_p(ycoor_temp,xcoor_temp,t) = J_diff_p(ycoor_temp,xcoor_temp,t) + ...
+                            diff_obs_state_n_t(i_on).*sub_time.*diff_psf_kernel_temp;
+                    end
+                end
+            end
+        end
+    else
+        %%% if not using subframes
+        if use_parallel
+            % initialize array for parfor loop purposes
+            J_temp = J_diff_p;
+            parfor t = 1:T_p
+                for n = 1:N_diff
+                    % observed state of particle n at time t
+                    diff_obs_state_n_t = diff_obs_state_p(n,t);
+                    if diff_obs_state_n_t
+                        diff_positions_n_t = squeeze(diff_positions_p(n,:,t));
+                        diff_psf_kernel_temp = ...
+                            getImgKernel(J_temp,diff_positions_n_t,...
+                            w0,'legacy',use_parallel,kernel_varargin{:});
+                        
+                        % time-integrated image at time t
+                        diff_kernel = diff_obs_state_n_t.*sub_time.*...
+                            diff_psf_kernel_temp;
+                        J_diff_p(:,:,t) = J_diff_p(:,:,t) + diff_kernel;
+                    end
+                end
+            end
+        else
+            for t = 1:T_p
+                for n = 1:N_diff
+                    % observed state of particle n at time t
+                    diff_obs_state_n_t = diff_obs_state_p(n,t);
+                    if diff_obs_state_n_t
+                        diff_positions_n_t = squeeze(diff_positions_p(n,:,t));
+                        [diff_psf_kernel_temp,xcoor_temp,ycoor_temp] = ...
+                            getImgKernel(J_diff_p,diff_positions_n_t,...
+                            w0,'legacy',use_parallel,kernel_varargin{:});
+                        
+                        % time-integrated image at time t
+                        J_diff_p(ycoor_temp,xcoor_temp,t) = J_diff_p(ycoor_temp,xcoor_temp,t) + ...
+                            diff_obs_state_n_t.*sub_time.*diff_psf_kernel_temp;
+                    end
+                end
             end
         end
     end
-else
-    for t = 1:T
-        for n = 1:N_diff
-            diff_obs_state_n_t = diff_obs_state(n,t,:);
-            on_inds = find(diff_obs_state_n_t ~= 0)';
-            diff_positions_n_t = squeeze(diff_positions(n,:,t,:));
-            for i_on = on_inds
-                [diff_psf_kernel_temp,xcoor_temp,ycoor_temp] = ...
-                    getImgKernel(J_diff,diff_positions_n_t(:,i_on),...
-                    w0,'legacy',use_parallel,kernel_varargin{:});
-                
-                % time-integrated image at time t
-                J_diff(ycoor_temp,xcoor_temp,t) = J_diff(ycoor_temp,xcoor_temp,t) + ...
-                    diff_obs_state_n_t(i_on).*sub_time.*diff_psf_kernel_temp;
-            end
-        end
+    % initial diff_positions to use for generating diff_positions in next
+    % subset
+    init_diff_positions = next_diff_position;
+    J_diff(:,:,T_vec_p) = J_diff_p;
+    if save_run
+        % partial save of diff_positions
+        m.diff_positions(:,:,T_vec_p,:) = diff_positions_p;
     end
+    clear diff_positions_p diff_obs_state_p J_diff_p
+    
+    progBar(p,n_parts);
 end
 %
 toc
 
+% clear unneeded variables
+clear photo_state obs_state J_temp diff_obs_state diff_positions
+
 J_sig = J_imm + J_diff;
 
-%%
+%% add noise
 
 disp('generating noise')
 
@@ -376,8 +497,12 @@ tic
 %
 if strcmp(noise_type,'emccd')
     J = addEMCCDNoise(J_sig,laser_varargin,noise_varargin{:});
-else
+elseif strcmp(noise_type,'legacy')
     [J,shot_noise_ser,wg_noise_ser] = addNoise(J_sig,noise_varargin{:});
+else
+    % rename J_sig -> J
+    J = J_sig;
+    clear J_sig
 end
 %
 toc
@@ -388,28 +513,36 @@ disp('saving simulation')
 
 tic
 %
-clear photo_state obs_state imm_tint_obs_state J_temp diff_obs_state ...
-    diff_positions psf_kernel_imm
+% simulation parameters to compare with ACF fitted parameters
 true_params = [D,k_on./(k_on+k_off),k_on+k_off,N_diff/N];
-% prevent double saving of noiseless movies
-if all(J_sig(:) == J(:))
-    clear J_sig
+
+% convert image series, J, to a less memory intensive numeric type
+if max(J(:)) <= intmax('int16') && strcmp(noise_type,'emccd')
+    J = int16(J);
 end
+
 if save_run
-    [save_dir,~,save_ext] = fileparts(savepath);
-    % prepend current directory path if savepath empty
-    if isempty(save_dir)
-        savepath = [cd,filesep,savepath];
-    end
-    % append default extension '.mat' to savepath if empty
-    if isempty(save_ext)
-        savepath = [savepath,'.mat'];
-    end
-    %
     if exist(savepath,'file')
         warning('file already exists; not overwritten')
     else
+        % save particles struct
+        save([save_dir,filesep,'particles.mat'],'particles','-v7.3');
+        clear particles
+        
+        % save all remaining variables to savepath
         save(savepath,'-v7.3')
+        
+        % remove memory intensive variables
+        all_vars = who;
+        exclude_vars = {'J_diff','J_imm','J_sig','tint_obs_state',...
+            'obs_kernel_stat'};
+        csvars = setdiff(all_vars,exclude_vars);
+        
+        % save 'compressed' simulation
+        [cfpath,cfname,cfext] = fileparts(savepath);
+        cfname = [cfname,'--compressed'];
+        compressed_savepath = [cfpath,filesep,cfname,cfext];
+        save(compressed_savepath,csvars{:});
     end
 end
 %

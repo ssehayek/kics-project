@@ -97,6 +97,8 @@ if ( norm_lag ~= 0 || use_norm == 0 ) && sub_noise == 1
     warning('Noise subtraction specified, but not normalizing by tau = 0. Noise will not be subtracted.')
 end
 
+J = double(J);
+
 size_y = size(J,1);
 size_x = size(J,2); % note inverted order definition of x and y
 T = size(J,3);

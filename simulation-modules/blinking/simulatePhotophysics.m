@@ -57,15 +57,17 @@ end
 
 % photo-state initialization
 %
-photo_state = 3*ones(N,total_T);
+photo_state = 3*ones(N,total_T,'int8');
 photo_state(:,1) = 1 + binornd(1,k_off/K,[N,1]);
 %
 % observed state initialization
 % 0:off, 1:on
 %
 obs_state = (photo_state == 1);
-% convert logical to double
-obs_state = double(obs_state);
+% convert obs_state to double if off_int_frac is integer
+if off_int_frac ~= floor(off_int_frac)
+    obs_state = double(obs_state);
+end
 % assign off-state "intensity" to off_int_frac
 obs_state(obs_state == 0) = off_int_frac;
 %
@@ -121,8 +123,8 @@ T = total_T*dt;
 % number of sub-frames per frame
 sub_frames = 1/dt;
 % rearrange state arrays into more convenient form
-obs_state_rearr = zeros(N,T,sub_frames);
-photo_state_rearr = zeros(N,T,sub_frames);
+obs_state_rearr = zeros(N,T,sub_frames,class(obs_state));
+photo_state_rearr = zeros(N,T,sub_frames,class(photo_state));
 for t = 1:T
     obs_state_rearr(:,t,:) = obs_state(:,(t-1)*sub_frames+1:t*sub_frames);
     photo_state_rearr(:,t,:) = photo_state(:,(t-1)*sub_frames+1:t*sub_frames);

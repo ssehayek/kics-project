@@ -76,8 +76,6 @@ cd(save_simpath)
 
 % move all files from temp_dir to save_simpath
 movefile([tmp_dir,filesep,'*'],save_simpath);
-% delete unnecessary files
-delete submitMatlabJob condor_script
 % rename analysisInput.m -> parameters.m
 movefile('analysisInput.m','parameters.m');
 
@@ -90,6 +88,9 @@ mask_struct.N_imm = N_imm;
 
 [J,true_params] = kicsSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
     mean_agg_num,std_agg_dist,num_filaments,prob_place,'parallel',sim_parallel,...
-    'subFrames',n_sub_frames,'savepath',save_simfile,'noiseType',...
+    'nParts',n_parts,'subFrames',n_sub_frames,'savepath',save_simfile,'noiseType',...
     noise_type,'kerVar',kernel_varargin,'laserVar',laser_varargin,...
     'noiseVar',noise_varargin,'fracDiff',frac_diff,'mask',mask_struct);
+
+% delete unnecessary files
+delete submitMatlabJob condor_script

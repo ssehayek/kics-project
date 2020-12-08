@@ -5,13 +5,16 @@ createSim = 1;
 % boolean for fitting the simulation
 fitSim = 0;
 
-%% SAVE DIRECTORIES
+%% SAVE PARAMETERS
 
 % save directory
 base_dir = 'C:\Users\Simon\Dropbox (Wiseman Research)\research-projects\kics-project\';
 
 % simulation file tag
 sim_tag = 'dendritic-cell';
+
+% how many times to periodically save/clear diffusion positions
+n_parts = 1;
 
 % % boolean for saving simulation
 % save_sim = 1;
@@ -149,8 +152,8 @@ tolFun = 0;
 output_mins = 0;
 
 % lags to fit (actual tau values)
-tauVector = [1:5];
-kSqMin = 0.01;
+tauVector = [1:10];
+kSqMin = eps;
 % put 'max' to fit entire range
 kSqMax = 1.8;
 

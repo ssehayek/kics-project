@@ -13,6 +13,9 @@ tmp_dir = '/media/3TB-GPU-Drive/simon.sehayek/research-projects/kics-reboot/queu
 % simulation file tag
 sim_tag = '';
 
+% how many times to periodically save/clear diffusion positions
+n_parts = 10;
+
 % main parameters
 %
 % size of image series in pixels (sz x sz)
