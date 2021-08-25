@@ -26,6 +26,6 @@ if is_mult == 0
         case 1
             disp(['progress: ',num2str(n/N*100),'% after ',num2str(time),' s.'])
         otherwise
-            disp(['progress: ',num2str(n/N*100),'.'])
+            disp(['progress: ',num2str(n/N*100),'%.'])
     end
 end

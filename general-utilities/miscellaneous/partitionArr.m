@@ -5,7 +5,7 @@
 %
 % INPUT
 % arr: vector to be split
-% n_parts: request number of parts vector to be partitioned into
+% n_parts: requested number of parts to partition arr into
 %
 % OPTIONAL 
 %
@@ -25,7 +25,7 @@ switch nargin
 end
 
 % numel is used to generalize function for an array
-if isscalar(arr) == 0 || isarr == 1
+if ~isscalar(arr) || isarr == 1
     % arr is array
     n = numel(arr);
 else

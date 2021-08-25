@@ -11,6 +11,8 @@ s.units = 'inches';
 s.changeFigPos = 1;
 % width of figure
 s.width = 3.25;
+% use square dimensions when specifying width
+s.square = 0;
 %%% axis properties
 % axis font size
 s.fontSize = 9;
@@ -32,19 +34,21 @@ end
 
 %% 
 
-% move figure to lower-left of screen
-if s.changeFigPos
-    % reset figure position to default
-    set(h,'Position',get(0,'defaultfigureposition'));
-    
-    h.Units = s.units;
-    h.Position(1:2) = [0,0];
-    % change width while keeping aspect ratio
-    h.Position(3:4) = s.width*h.Position(3:4)/h.Position(3);
-end
-h.PaperPositionMode = 'auto';
-paper_pos = h.PaperPosition;
-h.PaperSize = [paper_pos(3) paper_pos(4)];
+% % move figure to lower-left of screen
+% if s.changeFigPos
+%     % reset figure position to default
+%     set(h,'Position',get(0,'defaultfigureposition'));
+%     
+%     h.Units = s.units;
+%     h.Position(1:2) = [0,0];
+%     if s.square
+%         % use square dimensions to set size of figure
+%         h.Position(3:4) = s.width;
+%     else
+%         % change width while keeping aspect ratio
+%         h.Position(3:4) = s.width*h.Position(3:4)/h.Position(3);
+%     end
+% end
 
 AxList = findall(h,'type','axes');
 for iAx = 1:length(AxList)
@@ -58,8 +62,21 @@ for iAx = 1:length(AxList)
         ax.Legend.FontSize = s.legSize;
     end
     ax.Box = s.box;
+    
+    ax.Units = s.units;
+    if s.square
+        % use square dimensions to set size of figure
+        ax.OuterPosition(3:4) = s.width;
+    else
+        % change width while keeping aspect ratio
+        ax.OuterPosition(3:4) = s.width*h.Position(3:4)/h.Position(3);
+    end
     % fixes conversion from char array to cell array
 %     fixAxesScale(ax);
 end
 
-% tightfig(h)
+h.PaperPositionMode = 'auto';
+paper_pos = h.PaperPosition;
+h.PaperSize = [paper_pos(3) paper_pos(4)];
+
+tightfig(h)

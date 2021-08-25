@@ -1,3 +1,5 @@
+% Written by Jason S. Leith and Alexander Verge. Additions by Simon
+% Sehayek.
 function [ stack, iFrame ] = im3read(filename,varargin)
 %   Reads frames (vector) images from filename via imread.
 %  im3read historically (pre-2015) converted to double.  Now allows
