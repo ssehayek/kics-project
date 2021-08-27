@@ -8,7 +8,6 @@
 *.fig
 !movieplayer.fig
 *.nb
-*.mat
 
 # user-defined
 *.out
