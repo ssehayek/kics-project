@@ -113,9 +113,27 @@ tic
 % kICS autocorrelation function (ACF)
 r_k = kICS(J,'normByLag','none');
 
-% r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
-
 r_k_0_sub = kICSSubNoise(r_k,ksq_min_noise,ksq_max_noise);
+
+if do_interp
+    % get and cut |k|^2 vector
+    [kSqVector,kSqInd] = getKSqVector(J);
+    [kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMin',kSqMin,'kSqMax',kSqMax,'UseZero',1);
+    % [kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMax',kSqMax);
+    
+    n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
+    r_k_0_circ = ellipticInterp(r_k_0_sub,kSqVectorSubset,n_theta_arr);
+    
+    r_k_circ = zeros(length(kSqVectorSubset),length(tauVector));
+    r_k_tau = r_k(:,:,tauVector+1);
+    for tau_i = 1:length(tauVector)
+        r_k_circ(:,tau_i) = ellipticInterp(r_k_tau(:,:,tau_i),kSqVectorSubset,n_theta_arr);
+    end
+else
+    r_k_0_circ = circular(r_k_0_sub(:,:,1));
+    r_k_circ = circular(r_k);
+end
+
 % if do_interp
 %     n_theta_arr = n_theta*ones(1,length(kSqVectorSubset));
 %     r_k_0_circ = ellipticInterp(r_k_0_sub,kSqVectorSubset,n_theta_arr);
@@ -126,8 +144,8 @@ r_k_0_sub = kICSSubNoise(r_k,ksq_min_noise,ksq_max_noise);
 %     end
 %     delete(gcp)
 % else
-r_k_0_circ = circular(r_k_0_sub(:,:,1));
-r_k_circ = circular(r_k);
+% r_k_0_circ = circular(r_k_0_sub(:,:,1));
+% r_k_circ = circular(r_k);
 % r_k_0_circ = r_k_0_circ(kSqSubsetInd,1);
 
 % r_k_circ_uncut = circular(r_k(:,:,tauVector+1));
@@ -146,25 +164,27 @@ toc
 %     save(filename,'kSqVector','r_k','r_k_norm');
 % end
 
+%% normalization
+
+switch do_interp
+    case 1
+        r_k_norm = real(r_k_circ./r_k_0_circ');
+    otherwise
+        % get and cut |k|^2 vector
+        [kSqVector,kSqInd] = getKSqVector(J);
+        [kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMin',kSqMin,'kSqMax',kSqMax,'UseZero',1);
+        
+        % cut autocorrelation
+        r_k_circ_cut = r_k_circ(kSqSubsetInd,tauVector+1);
+        % cut normalization
+        r_k_0_circ_cut = r_k_0_circ(kSqSubsetInd,1);
+        
+        % normalization
+        % r_k_norm = abs(r_k_circ_cut)./abs(r_k_0_circ_cut);
+        r_k_norm = real(r_k_circ_cut./r_k_0_circ_cut);
+end
+
 %% plot simulation data
-
-%%% cut acf
-%
-% get and cut |k|^2 vector
-[kSqVector,kSqInd] = getKSqVector(J);
-[kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMin',kSqMin,'kSqMax',kSqMax);
-% [kSqVectorSubset,kSqSubsetInd] = getKSqVector(J,'kSqMax',kSqMax);
-
-% cut autocorrelation
-r_k_circ_cut = r_k_circ(kSqSubsetInd,tauVector+1);
-% cut normalization
-r_k_0_circ_cut = r_k_0_circ(kSqSubsetInd,1);
-
-% normalization
-% r_k_norm = abs(r_k_circ_cut)./abs(r_k_0_circ_cut);
-r_k_norm = real(r_k_circ_cut./r_k_0_circ_cut);
-%
-%%%
 
 [~,plot_idx] = ismember(plotTauLags,tauVector);
 

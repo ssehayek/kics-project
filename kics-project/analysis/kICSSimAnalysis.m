@@ -31,6 +31,7 @@ lb = eps*ones(1,4);
 ub = [Inf,1,Inf,1];
 
 % rois to consider (one per row; form [x0,y0,width,height])
+
 roi = ...
     [1,1,64,64;
     65,65,64,64;
@@ -42,9 +43,11 @@ nPtsFitPlot = 1e3;
 
 %% main code
 
+close all
+
 mkdir('analysis')
 
-for i = 1:4
+for i = 1:size(roi,1)
     % roi image series
     J_roi = J(roi(i,2):roi(i,2)+roi(1,4)-1,roi(i,1):roi(i,1)+roi(i,3)-1,:);
     

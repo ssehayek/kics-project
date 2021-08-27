@@ -21,9 +21,6 @@ function [phi_k] = kICS(J,varargin)
 
 % time lag to normalize by
 norm_lag = 0;
-% if normalizing by 0th lag, this option first subtracts the noise from
-% this lag past ksq_min_noise
-sub_noise = 0;
 % logical for normalization
 use_norm = 1;
 % use Wiener-Khinchin theorem; note this technically should
@@ -49,14 +46,6 @@ for ii = 1:2:length(varargin)
             norm_lag = varargin{ii+1};
         elseif any(strcmpi(varargin{ii+1},{'none','noNorm'}))
             use_norm = 0;
-        else
-            warning(['Unknown option for ''',varargin{ii},...
-                ''', using default options.'])
-        end
-    elseif any(strcmpi(varargin{ii},{'ksqMinNoise'}))
-        if isnumeric(varargin{ii+1}) && varargin{ii+1} >= 0
-            sub_noise = 1;
-            ksq_min_noise = varargin{ii+1};
         else
             warning(['Unknown option for ''',varargin{ii},...
                 ''', using default options.'])
@@ -91,10 +80,6 @@ for ii = 1:2:length(varargin)
     else
         warning(['unknown varargin input ''',varargin{ii},'''.'])
     end
-end
-
-if ( norm_lag ~= 0 || use_norm == 0 ) && sub_noise == 1
-    warning('Noise subtraction specified, but not normalizing by tau = 0. Noise will not be subtracted.')
 end
 
 J = double(J);
@@ -146,14 +131,7 @@ for tau = 0:T-1
 end
 
 if use_norm % normalize
-    if sub_noise && norm_lag == 0
-        [~,~,noise_inds] = getKSqVector(r_k,'ksqMin',ksq_min_noise);
-        r_k_0 = r_k(:,:,1);
-        mean_noise = mean(r_k_0(noise_inds));
-        phi_k = r_k./(r_k_0-mean_noise);
-    else
-        phi_k = r_k./r_k(:,:,norm_lag+1);
-    end
+    phi_k = r_k./r_k(:,:,norm_lag+1);
 else % don't normalize
     phi_k = r_k;
 end
