@@ -39,17 +39,17 @@ end
 %
 
 [X,Y] = meshgrid(xgv,ygv); % create xy-lattices with zeros at the center position
-lattice_sqrd = (X/size_x).^2 + (Y/size_y).^2; % norm squared of lattice
-lattice_nums = unique(lattice_sqrd); % unique values occuring in lattice sorted
-                                     % into vector
-l_nums = length(lattice_nums); % number of numbers in "lattice_nums"        
+int_lattice_sqrd = (X*size_y).^2 + (Y*size_x).^2; % norm squared of integer lattice equivalent to ksq lattice
+lattice_nums = unique(int_lattice_sqrd); % unique values occuring in integer lattice sorted
+                                         % into vector
+l_nums = length(lattice_nums); % number of values in "lattice_nums"        
                                      
 r_k_circ = zeros(l_nums,T); % array to fill with circular average of r_k_norm
 unique_inds = zeros(l_nums,1);
 for i = 1:length(lattice_nums) 
     n = lattice_nums(i); 
-    inds = find(lattice_sqrd == n); % indices in "lattice_sqrd" with value "n"
-    [subs_y,subs_x] = ind2sub(size(lattice_sqrd),inds); % convert linear indices to subscripts
+    inds = find(int_lattice_sqrd == n); % indices in "int_lattice_sqrd" with value "n"
+    [subs_y,subs_x] = ind2sub(size(int_lattice_sqrd),inds); % convert linear indices to subscripts
     unique_inds(i) = inds(1);
     
 	l_inds = length(inds); % number of indices
@@ -63,4 +63,4 @@ for i = 1:length(lattice_nums)
     end
 end
 
-ksq = (2*pi)^2*lattice_nums; % unique |k|^2 values sorted into vector
+ksq = (2*pi)^2/(size_x*size_y)^2*lattice_nums; % unique |k|^2 values sorted into vector

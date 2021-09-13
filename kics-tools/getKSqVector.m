@@ -54,10 +54,12 @@ end
 
 % create xy-lattices
 [X,Y] = meshgrid(xgv,ygv);
+% equivalent integer lattice to k-squared lattice
+int_lattice_sqrd = (X*size_y).^2 + (Y*size_x).^2;
 % norm squared of lattice
-lattice_sqrd = (2*pi)^2*((X/size_x).^2 + (Y/size_y).^2);
+k_lattice_sqrd = (2*pi)^2*((X/size_x).^2 + (Y/size_y).^2);
 % unique values occuring in lattice sorted into vector
-ksq = unique(lattice_sqrd);
+ksq = (2*pi)^2/(size_x*size_y)^2*unique(int_lattice_sqrd);
 
 % lowest index, i, which satisfies kSqVector(i) >= kSqMin
 if strcmpi(ksq_min,'min')
@@ -80,7 +82,7 @@ iksq_sub = iksq_min:iksq_max; % all indices satisfying kSqMin <= kSqVector(i) <=
 
 if nargout == 3
     % get corresponding lattice indices in the range [ksq_min,ksq_max]
-    lattice_inds = find( lattice_sqrd >= ksq_min & lattice_sqrd <= ksq_max );
+    lattice_inds = find( k_lattice_sqrd >= ksq_min & k_lattice_sqrd <= ksq_max );
 end
 
 if use_zero == 0 && ksq_sub(1) == 0
