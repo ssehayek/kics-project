@@ -13,7 +13,8 @@
 % in the intesity trace is closest to having an e-1 ratio with the
 % guessed amplitude (after subtracting both values by "offset_guess")
 %
-function [params_guess,lb,ub] = getBleachGuess(J,varargin)
+function [params_guess] = getBleachGuess(J,varargin)
+% function [params_guess,lb,ub] = getBleachGuess(J,varargin)
 
 fit_offset = 0;
 for ii = 1:length(varargin)
@@ -45,12 +46,12 @@ else
     params_guess = [amp_guess,kp_guess];
 end
 
-%% bounds
-
-if fit_offset
-    lb = [offset_guess,eps,eps];
-    ub = 2*[amp_guess,kp_guess,offset_guess];
-else
-    lb = [offset_guess,eps];
-    ub = 2*[amp_guess,kp_guess];
-end
+% %% bounds
+% 
+% if fit_offset
+%     lb = [offset_guess,eps,eps];
+%     ub = 2*[amp_guess,kp_guess,offset_guess];
+% else
+%     lb = [offset_guess,eps];
+%     ub = 2*[amp_guess,kp_guess];
+% end

@@ -37,10 +37,12 @@ else
 end
 %
 
-[x0,lb,ub] = getBleachGuess(J,'offset',fit_offset);
+x0 = getBleachGuess(J,'offset',fit_offset);
 
 % p = lsqcurvefit(bleach_profile,x0,t',I_t,lb,ub); % LSF
-[p,~,resid,~,~,~,jacobian] = lsqcurvefit(bleach_profile,x0,t',I_t,lb,ub); % LSF
+% [p,~,resid,~,~,~,jacobian] = lsqcurvefit(bleach_profile,x0,t',I_t,lb,ub); % LSF
+opts = optimoptions('lsqcurvefit','Display','off');
+[p,~,resid,~,~,~,jacobian] = lsqcurvefit(bleach_profile,x0,t',I_t,[],[],opts); % LSF
 
 % confidence intervals on "p"
 % note that "nlparci.m" is supposed to be used with "nlinfit.m" (compatible
@@ -49,18 +51,18 @@ ci = nlparci(p,resid,'jacobian',jacobian,'alpha',alpha);
 
 % plotting
 if show_fig || nargout > 2
-    figure()
+    figure();
     hold on
     
-    plot(t',I_t) % intensity trace plot
-    plot(t',bleach_profile(p,t)) % LSF curve
+    plot(t',I_t,'LineWidth',1.2) % intensity trace plot
+    plot(t',bleach_profile(p,t),'LineWidth',1.2) % LSF curve
     
     % labeling
     xlabel('$t$ (frames)','interpreter','latex','fontsize',14)
-    ylabel('$\overline{i({\bf r},t)}_{\bf r}$','interpreter','latex','fontsize',14)
+    ylabel('$\overline{i(\mbox{\boldmath$r$},t)}_{\mbox{\boldmath$r$}}$','interpreter','latex','fontsize',14)
     legend({'data','fit'},'fontsize',12,'interpreter','latex')
     
-    tightfig(gcf) % no white-space (3rd party package; works for release 2015b)
+    tightfig(gcf); % no white-space (3rd party package; works for release 2015b)
     
     if nargout > 2
         varargout{1} = gcf;
