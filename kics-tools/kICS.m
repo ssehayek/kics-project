@@ -93,7 +93,7 @@ if use_time_fluct && ~time_win
     J_fluct = J-repmat(mean(J,3),[1,1,size(J,3)]);
 elseif time_win
     % subtract by local temporal mean
-    J_fluct = J-movmean(J,[0,win_k],3);
+    J_fluct = J-movmean(J,[0,win_k-1],3);
 else
     % no fluctuations
     J_fluct = J;
