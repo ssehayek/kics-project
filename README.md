@@ -22,7 +22,7 @@ To summarize the main advantages:
   
 ## Usage
 
-Please see the [demo](kics-project/demo) folder for an example of how to use the code in this repository.
+Please see the [demo](kics-project/demo) folder for an example of how to use the code in this repository. Please also extract "simulation-files.zip" to run the [demo code](kics-project/demo).
 
 ## References
 
