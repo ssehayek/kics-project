@@ -1,16 +1,39 @@
+% SIMULATION WRAPPER
+%
+% READ FIRST
+%
+% This file is used to create new simulations. Enter desired parameters
+% into "kicsSimParams.m" before running. Make sure the structure of
+% the GitHub repository is preserved.
+%
+% Don't forget to add all the codes in this repository to your MATLAB path.
+% To do this, change your directory in MATLAB to the one containing this
+% repository and run the following code: 
+%
+% addpath(genpath('./kics-project'))
+%
+% The demo analysis can be run on newly created simulations here by
+% providing the output file "<sim_tag>--compressed.mat" (in fact, it only
+% requires the variables "J" and "true_params" from this file to run).
+% The variable "J" in "<sim_tag>--compressed.mat" is the simulated image
+% series.
+%
+% All simulations are 2D and assume one immobile and one freely diffusing
+% population with the same photophysical parameters (i.e., photoblinking
+% and photobleaching rates).
+
 %% preliminary code
 
 % reseed the random number generator; otherwise same random
 % numbers are generated each time MATLAB restarts
 seed = rng('shuffle');
 
-run('analysisInput.m') % gets all parameters from "analysisInput.m"
-
-addpath(genpath(code_path))
+% gets all parameters from "kicsSimParams.m"
+run('kicsSimParams.m')
 
 %% create save path for simulation
 
-% this is meant to better organize files & speed up simulations
+% this is meant to better organize files and speed up simulations
 %
 if (num_filaments == 0 || prob_place == 0) && (use_mask == 0)
     % no filaments means no immobile particles, or aggregates
@@ -70,16 +93,9 @@ end
 
 disp(['creating simulation ',save_simpath,'.'])
 
-%% create run directory
-
 cd(save_simpath)
 
-% move all files from temp_dir to save_simpath
-movefile([tmp_dir,filesep,'*'],save_simpath);
-% rename analysisInput.m -> parameters.m
-movefile('analysisInput.m','parameters.m');
-
-%% create simulations
+%% create simulation
 
 % struct for mask option
 mask_struct.use_mask = use_mask;
@@ -91,6 +107,3 @@ mask_struct.N_imm = N_imm;
     'nParts',n_parts,'subFrames',n_sub_frames,'savepath',save_simfile,'noiseType',...
     noise_type,'kerVar',kernel_varargin,'laserVar',laser_varargin,...
     'noiseVar',noise_varargin,'fracDiff',frac_diff,'mask',mask_struct);
-
-% delete unnecessary files
-delete submitMatlabJob condor_script
