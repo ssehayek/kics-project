@@ -99,14 +99,14 @@ particles.position = particles.position(any(particles.position,2),:); % Remove a
 particles.angle = particles.angle(any(particles.angle,2));
 N_imm = size(particles.position,1);
 
-figure() % show filaments
-colormap(pink)
-imagesc(filaments)
-
-figure() % show particle positions
-image = zeros(sz);
-for i = 1:size(particles.position,1)
-    image(round(particles.position(i,1)),round(particles.position(i,2))) = 1;
-end
-imagesc(image)
-colormap(pink)
+% figure() % show filaments
+% colormap(pink)
+% imagesc(filaments)
+% 
+% figure() % show particle positions
+% image = zeros(sz);
+% for i = 1:size(particles.position,1)
+%     image(round(particles.position(i,1)),round(particles.position(i,2))) = 1;
+% end
+% imagesc(image)
+% colormap(pink)

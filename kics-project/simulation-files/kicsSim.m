@@ -1,9 +1,8 @@
-% dronpaSim(...) is meant to simulate the behaviour of a certain Dronpa
-% mutant bound to beta actin. The beta actin is allowed to freely diffuse,
-% or remain fixed in filamentous structures. Immobile particles found on
-% these filaments are also allowed to form aggregates. Additionally, all
-% particles are assumed to possess the same blinking/bleaching
-% distributions.
+% kicsSim(...) simulates two fluoroscent particle populations in 2D: one
+% immobile population, which can be arranged along filaments or within a
+% user-specified mask, and one freely diffusing population. Both
+% populations are assumed to have the same photophysical properties (i.e.,
+% blinking and bleaching rates). EMCCD noise is added to the simulations.
 %
 % The filaments are created by drawing angles from a narrow Gaussian
 % distribution. Particles are then subsequently placed along the filaments
@@ -12,18 +11,22 @@
 %
 % A fraction of the immobile population will be aggregated. The number of
 % molecules in a certain aggregate is drawn from a Poisson distribution,
-% with some fixed mean. The distances between molecules in an aggregate are
-% drawn from a narrow Gaussian distribution.
+% with mean mean_agg_num. The distances between molecules in an aggregate
+% and its center are drawn from a Gaussian distribution with standard
+% deviation std_agg_dist.
+%
+% Please refer to "simulation-wrapper/kicsSimParams.m" for more details
+% about the parameters.
 %
 % SIMULATION PARAMS
-% sz: size of each frame (assumed square)
+% sz: size of each frame in pixels (assumed square)
 % T: number of frames
 % w0: PSF size (e-2 radius)
 % N_diff: number of diffusing molecules
 % D: diffusion coefficient
-% k_on: rate of blinking on
-% k_off: rate of blinking off
-% k_p: rate of bleaching
+% k_on: rate of blinking on (off -> on) in frames^-1
+% k_off: rate of blinking off (on -> off) in frames^-1
+% k_p: rate of bleaching in frames^-1
 %
 % AGGREGATE PARAMS
 % prob_agg: probability that a certain immobile particle is aggregated
@@ -38,27 +41,11 @@
 %             steps along filament as: rand()*unit_vec, where unit_vec is
 %             the unit vector in the direction of the filament
 %
-% VARARGIN
-% - Choose whether to simulate photophysics
-%   'doSimulatePhotophysics' | values: (default 1) 0
-% - Add white-noise to simulation, with given signal-to-noise ratio (SNR)
-%   (by default noise is not added)
-%   'SNR' | value: value of (0,Inf), but more standard (1,~4]
-% - Simulate integration time by choosing a number of sub frames for each
-%   image. Ideally, the number of sub frames would be infinite.
-%   'subFrames' | value: [1,Inf) (default 1 i.e. no integration time)
-% FUTURE IMPROVEMENTS
-% - Dronpa has odd blinking behaviour, which does not follow the standard
-%   two-state model (see http://www.pnas.org/content/102/27/9511.full).
-% - PSF should have stochastic size
-% - Laser power should affect blinking on rate
-%
 function [J,true_params] = kicsSim(sz,T,w0,N_diff,D,k_on,k_off,k_p,...
     mean_agg_num,std_agg_dist,num_filaments,prob_place,varargin)
 
-% num_filaments = 20;
-% prob_place = 0.3;
-% std_agg_dist = 1/10; % default standard deviation of aggregates' distance from initially placed particle
+% assign defaults to varargin variables
+%
 frac_diff = [];
 doSimulatePhotophysics = 1;
 blink_model = 'twoStateBleach';
@@ -66,13 +53,13 @@ off_int_frac = 0;
 n_sub_frames = 1;
 save_run = 0;
 use_parallel = 0;
-% determines periodic saving of diffusion positions
 n_parts = 1;
 noise_type = '';
 use_mask = 0;
 kernel_varargin = {};
 laser_varargin = {};
 noise_varargin = {};
+% assign user-specified varargin values to variables
 for n = 1:2:length(varargin)
     if any(strcmpi(varargin{n},{'fracDiff','fractionDiff',...
             'fractionDiffusing'}))
@@ -177,15 +164,18 @@ end
 % setting up save directory/file
 if save_run
     [save_dir,~,save_ext] = fileparts(savepath);
-    % prepend current directory path if savepath empty
+    % prepend current directory path if savepath is empty
     if isempty(save_dir)
         savepath = [cd,filesep,savepath];
     end
-    % append default extension '.mat' to savepath if empty
+    % append default extension '.mat' to savepath if extension is empty
     if isempty(save_ext)
         savepath = [savepath,'.mat'];
     end
-    %
+    % check if file under same name already exists, throw an error if it does
+    if exist(savepath,'file')
+        error('file already exists; please specify another save path')
+    end
 end
 
 % total number of frames (including sub frames)
@@ -218,7 +208,8 @@ end
     mean_agg_num,std_agg_dist);
 % initial diffusing particle positions
 if ~isempty(frac_diff)
-    % use frac_diff to determine N_diff
+    % if it isn't empty, use frac_diff to determine N_diff (overrides
+    % any specified value for N_diff)
     N_diff = round(frac_diff./(1-frac_diff).*N_imm);
 end
 % use N_diff to determine number of diffusing particles
@@ -248,8 +239,9 @@ if doSimulatePhotophysics
     %
     % cumulative sum over number of aggregates
     agg_csum = [0,cumsum(particles.immobile.nDyes)];
-    % organize photophysical properties into particles struct; organized
-    % by aggregate
+    % organize photophysical properties into particles struct;
+    % particles.immobile.photoState{n} stores the photophysical states of
+    % the particles in aggregate n
     for n = 1:length(agg_csum)-1
         particles.immobile.photoState{n} = ...
             photo_state(N_diff+1+agg_csum(n):N_diff+agg_csum(n+1),:,:);
@@ -269,24 +261,6 @@ tic
 %
 % array to store noiseless image series of immobile particles
 J_imm = zeros(sz,sz,T);
-
-% get dye PSF arrays and corresponding positions
-% if use_parallel
-%     % array for storing PSFs
-%     psf_kernel_imm = zeros(sz,sz,N_imm);
-%     for n = 1:N_imm
-%         psf_kernel_imm(:,:,n) = ...
-%             getImgKernel(J_imm,imm_positions(n,:),w0,'legacy',...
-%             use_parallel,kernel_varargin{:});
-%     end
-% else
-%     kernel_info = cell(1,N_imm);
-%     for n = 1:N_imm
-%         [kernel_info{n}.psf_kernel,kernel_info{n}.xcoor,kernel_info{n}.ycoor] = ...
-%             getImgKernel(J_imm,imm_positions(n,:),w0,'legacy',...
-%             use_parallel,kernel_varargin{:});
-%     end
-% end
 
 % cell array for storing PSFs
 kernel_info = cell(1,N_imm);
@@ -315,36 +289,6 @@ for t = 1:T
     end
 end
 %
-
-% % construct immobile image series
-% if use_parallel
-%     for t = 1:T
-%         % find indices of particles that are not off for the whole frame t
-%         on_inds = find(imm_tint_obs_state(t,1,:));
-%         % multiply emitting dyes by their respective time-integrated
-%         % photostate
-%         obs_kernel_stat = imm_tint_obs_state(t,1,on_inds).*sub_time.*...
-%             psf_kernel_imm(:,:,on_inds);
-%         % time-integrated image at time t
-%         J_imm(:,:,t) = sum(obs_kernel_stat,3);
-%     end
-% else
-%     for t = 1:T
-%         % find indices of particles that are not off for the whole frame t
-%         on_inds = find(imm_tint_obs_state(t,1,:))';
-%         for n = on_inds
-%             % PSF coordinates of nth dye
-%             xcoor_n = kernel_info{n}.xcoor;
-%             ycoor_n = kernel_info{n}.ycoor;
-%             % corresponding PSF values
-%             psf_kernel_imm_n = kernel_info{n}.psf_kernel;
-%             % time-integrated image at time t
-%             J_imm(ycoor_n,xcoor_n,t) = J_imm(ycoor_n,xcoor_n,t) + ...
-%                 imm_tint_obs_state(t,1,n).*sub_time.*psf_kernel_imm_n;
-%         end
-%     end
-% end
-% %
 
 clear imm_tint_obs_state
 
@@ -522,28 +466,24 @@ if max(J(:)) <= intmax('int16') && strcmp(noise_type,'emccd')
 end
 
 if save_run
-    if exist(savepath,'file')
-        warning('file already exists; not overwritten')
-    else
-        % save particles struct
-        save([save_dir,filesep,'particles.mat'],'particles','-v7.3');
-        clear particles
-        
-        % save all remaining variables to savepath
-        save(savepath,'-v7.3')
-        
-        % remove memory intensive variables
-        all_vars = who;
-        exclude_vars = {'J_diff','J_imm','J_sig','tint_obs_state',...
-            'obs_kernel_stat'};
-        csvars = setdiff(all_vars,exclude_vars);
-        
-        % save 'compressed' simulation
-        [cfpath,cfname,cfext] = fileparts(savepath);
-        cfname = [cfname,'--compressed'];
-        compressed_savepath = [cfpath,filesep,cfname,cfext];
-        save(compressed_savepath,csvars{:});
-    end
+    % save particles struct
+    save([save_dir,filesep,'particles.mat'],'particles','-v7.3');
+    clear particles
+    
+    % save all remaining variables to savepath
+    save(savepath,'-v7.3')
+    
+    % remove memory intensive variables
+    all_vars = who;
+    exclude_vars = {'J_diff','J_imm','J_sig','tint_obs_state',...
+        'obs_kernel_stat'};
+    csvars = setdiff(all_vars,exclude_vars);
+    
+    % save 'compressed' simulation
+    [cfpath,cfname,cfext] = fileparts(savepath);
+    cfname = [cfname,'--compressed'];
+    compressed_savepath = [cfpath,filesep,cfname,cfext];
+    save(compressed_savepath,csvars{:});
 end
 %
 toc
